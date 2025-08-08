@@ -1,0 +1,21 @@
+
+
+import { CoreClient, ClientOption } from "./client";
+{{- range .IR.Services }}
+import { {{ serviceName .Tag }} } from "./services/{{ fileBase .Tag }}";
+{{- end }}
+
+export class {{ .Client.Name }} {
+  {{- range .IR.Services }}
+  readonly {{ serviceProp .Tag }}: {{ serviceName .Tag }};
+  {{- end }}
+
+  constructor(options?: ClientOption) {
+    const core = new CoreClient(options);
+    {{- range .IR.Services }}
+    this.{{ serviceProp .Tag }} = new {{ serviceName .Tag }}(core);
+    {{- end }}
+  }
+}
+
+export type { ClientOption };

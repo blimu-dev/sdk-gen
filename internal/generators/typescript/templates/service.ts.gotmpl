@@ -1,0 +1,36 @@
+import { CoreClient } from "../client";
+import * as Schema from "../schema";
+
+export class {{ serviceName .Service.Tag }} {
+  constructor(private core: CoreClient) {}
+  
+  {{- range .Service.Operations }}
+
+  /**
+   * {{ .Method }} {{ .Path }}
+   */
+
+  
+  {{- $method := methodName . -}}
+  {{- $pathParams := .PathParams -}}
+  {{- $queryParams := .QueryParams -}}
+  {{- $req := .RequestBody -}}
+  {{- $resp := .Response -}}
+
+  {{""}}
+  {{ $method }}({{ methodSignature . }}): Promise<{{ $resp.TypeTS }}> {
+    return this.core.request({
+      method: "{{ .Method }}",
+      path: {{ pathTemplate . }},
+      {{- if gt (len $queryParams) 0 }}
+      query,
+      {{- end }}
+      {{- if $req }}
+      headers: { ...(init?.headers || {}), "content-type": "{{ $req.ContentType }}" },
+      body: {{ if eq $req.ContentType "application/json" }}JSON.stringify(body){{ else }}(body as any){{ end }},
+      {{- end }}
+      ...(init || {}),
+    });
+  }
+  {{- end }}
+}

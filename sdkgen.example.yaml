@@ -1,0 +1,15 @@
+spec: spec.json
+name: "Example SDKs"
+clients:
+  - type: typescript
+    outDir: ./sdks/ts-public
+    packageName: "@blimu/sdk"
+    name: "Blimu"
+
+    # includeTags: [".*"]
+    # excludeTags: ["^internal$", "^experimental$"]
+  # - type: typescript
+  #   outDir: ./sdks/ts-admin
+  #   packageName: "@acme/sdk-admin"
+  #   name: "AcmeAdmin"
+  #   includeTags: ["^admin$"]
