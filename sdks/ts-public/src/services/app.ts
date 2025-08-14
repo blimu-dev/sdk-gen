@@ -7,11 +7,23 @@ export class AppService {
   /**
    * GET /v1
    */
-  list(init?: Omit<RequestInit, "method" | "body">): Promise<void> {
+  gethello(
+    init?: Omit<RequestInit, "method" | "body">
+  ): Promise<unknown> {
     return this.core.request({
       method: "GET",
       path: `/v1`,
       ...(init || {}),
     });
+  }
+
+  
+  /**
+   * @summary Get query keys for gethello
+   * @returns ['v1']
+   */
+  gethello__queryKeys(
+  ) {
+    return ['v1'] as const;
   }
 }

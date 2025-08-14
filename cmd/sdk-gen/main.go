@@ -4,8 +4,8 @@ import (
 	"log"
 	"os"
 
+	cli "github.com/blimu-dev/sdk-gen/internal/cli"
 	"github.com/spf13/cobra"
-	cli "github.com/viniciusdacal/sdk-gen/internal/cli"
 )
 
 func main() {
@@ -57,7 +57,7 @@ func newGenerateCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&configPath, "config", "c", "", "Path to sdkgen.yaml config")
 	cmd.Flags().StringVar(&singleClient, "client", "", "Generate only the named client from config")
 	// Fallback single-client flags
-	cmd.Flags().StringVar(&input, "input", "", "OpenAPI spec file (yaml/json)")
+	cmd.Flags().StringVar(&input, "input", "", "OpenAPI spec file or URL (yaml/json)")
 	cmd.Flags().StringVar(&typ, "type", "", "Client type (e.g., typescript)")
 	cmd.Flags().StringVar(&outDir, "out", "", "Output directory")
 	cmd.Flags().StringVar(&packageName, "package-name", "", "Package name")
@@ -77,7 +77,7 @@ func newValidateCmd() *cobra.Command {
 			return cli.RunValidate(input)
 		},
 	}
-	cmd.Flags().StringVar(&input, "input", "", "OpenAPI spec file (yaml/json)")
+	cmd.Flags().StringVar(&input, "input", "", "OpenAPI spec file or URL (yaml/json)")
 	_ = cmd.MarkFlagRequired("input")
 	return cmd
 }

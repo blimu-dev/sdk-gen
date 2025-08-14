@@ -272,7 +272,7 @@
         },
         "responses": {
           "201": {
-            "description": "Create organization",
+            "description": "Organization created",
             "content": {
               "application/json": {
                 "schema": {
@@ -282,6 +282,7 @@
             }
           }
         },
+        "summary": "Create organization",
         "tags": ["Organizations"]
       },
       "get": {
@@ -542,7 +543,10 @@
       },
       "OrganizationCreateDto": {
         "type": "object",
-        "properties": { "name": { "type": "string", "minLength": 1 } },
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "key": { "type": "string" }
+        },
         "required": ["name"]
       },
       "OrganizationDto_Output": {

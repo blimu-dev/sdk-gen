@@ -8,6 +8,15 @@ export class {{ serviceName .Service.Tag }} {
 
   /**
    * {{ .Method }} {{ .Path }}
+   {{- if .Summary }}
+   * @summary {{ .Summary | replace "*/" "*\\/" }}
+   {{- else if .Response.Description }}
+   * @returns {{ .Response.Description | replace "*/" "*\\/" }}
+   {{- end }}
+   {{- if .Description }}
+   *
+   * @description {{ .Description | replace "*/" "*\\/" }}
+   {{- end }}
    */
 
   
@@ -18,7 +27,12 @@ export class {{ serviceName .Service.Tag }} {
   {{- $resp := .Response -}}
 
   {{""}}
-  {{ $method }}({{ methodSignature . }}): Promise<{{ $resp.TypeTS }}> {
+  {{ $method }}(
+    {{- $params := methodSignature . -}}
+    {{ range $i, $param := $params }}
+    {{ $param }}{{ if lt $i (sub (len $params) 1) }},{{ end -}}
+    {{ end }}
+  ): Promise<{{ tsType $resp.Schema }}> {
     return this.core.request({
       method: "{{ .Method }}",
       path: {{ pathTemplate . }},
@@ -32,5 +46,22 @@ export class {{ serviceName .Service.Tag }} {
       ...(init || {}),
     });
   }
+
+  {{ if $.Client.IncludeQueryKeys }}
+  {{ $args := queryKeyArgs . -}}
+  /**
+   * @summary Get query keys for {{ $method }}
+   * @returns [{{ queryKeyBase . }}{{- range $a := $args }}, {{ $a }}{{- end }}]
+   */
+  {{ $method }}__queryKeys(
+    {{- $paramsNoInit := methodSignatureNoInit . -}}
+    {{- range $i, $param := $paramsNoInit }}
+    {{ $param }}{{ if lt $i (sub (len $paramsNoInit) 1) }},{{ end -}}
+    {{- end }}
+  ) {
+    {{ $args := queryKeyArgs . -}}
+    return [{{ queryKeyBase . }}{{- range $a := $args }}, {{ $a }}{{- end }}] as const;
+  }
+  {{- end }}
   {{- end }}
 }

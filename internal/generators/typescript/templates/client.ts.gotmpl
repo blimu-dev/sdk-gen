@@ -18,11 +18,7 @@ export type ClientOption = {
 };
 
 export class CoreClient {
-  public cfg: ClientOption;
-
-  constructor(cfg: ClientOption = {}) {
-    this.cfg = typeofcfg;
-  }
+  constructor(private cfg: ClientOption = {}) {}
   async request(
     init: RequestInit & {
       path: string;

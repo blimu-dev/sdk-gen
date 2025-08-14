@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/blimu-dev/sdk-gen/internal/ir"
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/viniciusdacal/sdk-gen/internal/ir"
 )
 
 // CollectModels builds TypeScript model declarations for components.schemas,
@@ -27,9 +27,8 @@ func CollectModels(doc *openapi3.T) []ir.IRModel {
 	for _, name := range names {
 		sr := doc.Components.Schemas[name]
 		seen[name] = struct{}{}
-		// If top-level component is a string enum, emit const + type alias instead of interface
-		if sr != nil && sr.Value != nil && sr.Value.Type != nil && sr.Value.Type.Is(openapi3.TypeString) && len(sr.Value.Enum) > 0 {
-			_ = ensureEnumDecl(name, "", false, sr.Value.Enum, &out, seen)
+		// Skip top-level enums here. Enums are rendered via templates from IR.ModelDefs.
+		if sr != nil && sr.Value != nil && len(sr.Value.Enum) > 0 {
 			continue
 		}
 		tsBody := schemaToTSForSchemaFile(doc, sr, name, "", false, &out, seen)
@@ -217,12 +216,26 @@ func ensureEnumDecl(parentName, propName string, isArrayItem bool, enumVals []in
 		if i > 0 {
 			b.WriteString("\n")
 		}
-		v := fmt.Sprint(ev)
 		b.WriteString("  \"")
-		b.WriteString(v)
-		b.WriteString("\": \"")
-		b.WriteString(v)
-		b.WriteString("\",")
+		vv := fmt.Sprint(ev)
+		b.WriteString(vv)
+		b.WriteString("\": ")
+		switch t := ev.(type) {
+		case string:
+			b.WriteString(fmt.Sprintf("%q", t))
+		case bool:
+			if t {
+				b.WriteString("true")
+			} else {
+				b.WriteString("false")
+			}
+		case int, int32, int64, float32, float64:
+			b.WriteString(fmt.Sprint(ev))
+		default:
+			// Fallback to string literal
+			b.WriteString(fmt.Sprintf("%q", fmt.Sprint(ev)))
+		}
+		b.WriteString(",")
 	}
 	b.WriteString("\n} as const\n")
 	*out = append(*out, ir.IRModel{Name: enumName, Decl: b.String()})

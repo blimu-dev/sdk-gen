@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	cli "github.com/viniciusdacal/sdk-gen/internal/cli"
+	cli "github.com/blimu-dev/sdk-gen/internal/cli"
 )
 
 func TestBuildIR_NoSpec(t *testing.T) {

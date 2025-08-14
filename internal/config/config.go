@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 
@@ -22,6 +23,11 @@ type Client struct {
 	Name        string   `yaml:"name"`
 	IncludeTags []string `yaml:"includeTags"`
 	ExcludeTags []string `yaml:"excludeTags"`
+	// IncludeQueryKeys toggles generation of __queryKeys helper methods in services
+	IncludeQueryKeys bool `yaml:"includeQueryKeys"`
+	// OperationIDParser is an optional executable script to transform operationId to a method name.
+	// It will be executed as: <parser> <operationId> <method> <path>
+	OperationIDParser string `yaml:"operationIdParser"`
 }
 
 func Load(path string) (*Config, error) {
@@ -46,7 +52,10 @@ func Load(path string) (*Config, error) {
 			c.OutDir = abs
 		}
 	}
-	if !filepath.IsAbs(cfg.Spec) {
+	// Do not absolutize when spec is an HTTP(S) URL
+	if u, err := url.Parse(cfg.Spec); err == nil && (u.Scheme == "http" || u.Scheme == "https") {
+		// keep as-is
+	} else if !filepath.IsAbs(cfg.Spec) {
 		abs, _ := filepath.Abs(cfg.Spec)
 		cfg.Spec = abs
 	}

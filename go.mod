@@ -1,4 +1,4 @@
-module github.com/viniciusdacal/sdk-gen
+module github.com/blimu-dev/sdk-gen
 
 go 1.24.3
 

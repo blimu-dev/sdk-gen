@@ -1,0 +1,7 @@
+---
+alwaysApply: true
+---
+
+This is a sdk generator, that we input openapi schemas and it should be able to ouput to multiple languages. For now, we only have typescript generator, but we intend to have more.
+
+We aim to generate cohesive, DX-first sdk, such as stripe's and resend's
