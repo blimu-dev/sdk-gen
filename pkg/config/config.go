@@ -10,12 +10,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Config represents the complete configuration for SDK generation
 type Config struct {
 	Spec    string   `yaml:"spec"`
 	Name    string   `yaml:"name"`
 	Clients []Client `yaml:"clients"`
 }
 
+// Client represents configuration for a single client SDK
 type Client struct {
 	Type        string   `yaml:"type"`
 	OutDir      string   `yaml:"outDir"`
@@ -30,6 +32,7 @@ type Client struct {
 	OperationIDParser string `yaml:"operationIdParser"`
 }
 
+// Load loads configuration from a YAML file
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

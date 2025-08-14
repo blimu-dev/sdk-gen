@@ -1,5 +1,6 @@
 package ir
 
+// IROperation represents a single API operation (endpoint + method)
 type IROperation struct {
 	OperationID string
 	Method      string
@@ -14,11 +15,13 @@ type IROperation struct {
 	Response    IRResponse
 }
 
+// IRService represents a group of operations, typically grouped by tag
 type IRService struct {
 	Tag        string
 	Operations []IROperation
 }
 
+// IR represents the complete intermediate representation of an OpenAPI spec
 type IR struct {
 	Services        []IRService
 	Models          []IRModel
@@ -27,6 +30,7 @@ type IR struct {
 	ModelDefs []IRModelDef
 }
 
+// IRParam represents a parameter (path or query)
 type IRParam struct {
 	Name     string
 	Required bool
@@ -35,6 +39,7 @@ type IRParam struct {
 	Description string
 }
 
+// IRRequestBody represents a request body
 type IRRequestBody struct {
 	ContentType string
 	TypeTS      string
@@ -42,6 +47,7 @@ type IRRequestBody struct {
 	Schema      IRSchema
 }
 
+// IRResponse represents a response
 type IRResponse struct {
 	TypeTS string
 	Schema IRSchema
@@ -49,6 +55,7 @@ type IRResponse struct {
 	Description string
 }
 
+// IRModel represents a generated model (legacy, kept for compatibility)
 type IRModel struct {
 	Name string
 	Decl string
@@ -73,6 +80,7 @@ type IRAnnotations struct {
 	Examples    []any
 }
 
+// IRSchemaKind represents the kind of schema
 type IRSchemaKind string
 
 const (
@@ -123,6 +131,7 @@ type IRSchema struct {
 	Discriminator *IRDiscriminator
 }
 
+// IRField represents a field in an object schema
 type IRField struct {
 	Name     string
 	Type     *IRSchema
@@ -131,6 +140,7 @@ type IRField struct {
 	Annotations IRAnnotations
 }
 
+// IRDiscriminator represents polymorphism discriminator information
 type IRDiscriminator struct {
 	PropertyName string
 	Mapping      map[string]string

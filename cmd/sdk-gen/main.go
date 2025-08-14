@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 
-	cli "github.com/blimu-dev/sdk-gen/internal/cli"
+	"github.com/blimu-dev/sdk-gen/internal/cli"
 	"github.com/spf13/cobra"
 )
 

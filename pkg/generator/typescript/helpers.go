@@ -1,107 +1,16 @@
 package typescript
 
 import (
-	"embed"
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
-	"text/template"
 
-	"github.com/Masterminds/sprig/v3"
-
-	"github.com/blimu-dev/sdk-gen/internal/config"
-	"github.com/blimu-dev/sdk-gen/internal/ir"
+	"github.com/blimu-dev/sdk-gen/pkg/config"
+	"github.com/blimu-dev/sdk-gen/pkg/ir"
 )
 
-//go:embed templates/*
-var templatesFS embed.FS
-
-type IR = ir.IR
-type IRService = ir.IRService
-type IROperation = ir.IROperation
-type IRParam = ir.IRParam
-
-func Generate(client config.Client, in IR) error {
-	// Ensure directories
-	srcDir := filepath.Join(client.OutDir, "src")
-	servicesDir := filepath.Join(srcDir, "services")
-	if err := os.MkdirAll(servicesDir, 0o755); err != nil {
-		return err
-	}
-
-	funcMap := template.FuncMap{
-		"pascal":      toPascalCase,
-		"camel":       toCamelCase,
-		"kebab":       toKebabCase,
-		"serviceName": func(tag string) string { return toPascalCase(tag) + "Service" },
-		"serviceProp": func(tag string) string { return toCamelCase(tag) },
-		"fileBase":    func(tag string) string { return strings.ToLower(toSnakeCase(tag)) },
-		"methodName":  func(op IROperation) string { return resolveMethodName(client, op) },
-		"queryTypeName": func(op IROperation) string {
-			return toPascalCase(op.Tag) + toPascalCase(resolveMethodName(client, op)) + "Query"
-		},
-		"pathTemplate":      func(op IROperation) string { return buildPathTemplate(op) },
-		"queryKeyBase":      func(op IROperation) string { return buildQueryKeyBase(op) },
-		"pathParamsInOrder": func(op IROperation) []IRParam { return orderPathParams(op) },
-		"methodSignature":   func(op IROperation) []string { return buildMethodSignature(op, resolveMethodName(client, op)) },
-		"methodSignatureNoInit": func(op IROperation) []string {
-			parts := buildMethodSignature(op, resolveMethodName(client, op))
-			if len(parts) > 0 {
-				return parts[:len(parts)-1]
-			}
-			return parts
-		},
-		"queryKeyArgs": func(op IROperation) []string { return queryKeyArgs(op) },
-		"tsType": func(x any) string {
-			switch v := x.(type) {
-			case ir.IRSchema:
-				return schemaToTSType(v)
-			case *ir.IRSchema:
-				if v != nil {
-					return schemaToTSType(*v)
-				}
-				return "unknown"
-			default:
-				return "unknown"
-			}
-		},
-		"stripSchemaNs": func(s string) string { return strings.ReplaceAll(s, "Schema.", "") },
-		"reMatch":       func(pattern, s string) bool { r := regexp.MustCompile(pattern); return r.MatchString(s) },
-	}
-
-	// client.ts
-	if err := renderFile("client.ts.gotmpl", filepath.Join(srcDir, "client.ts"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
-		return err
-	}
-	// index.ts
-	if err := renderFile("index.ts.gotmpl", filepath.Join(srcDir, "index.ts"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
-		return err
-	}
-	// services per tag
-	for _, s := range in.Services {
-		target := filepath.Join(servicesDir, fmt.Sprintf("%s.ts", strings.ToLower(toSnakeCase(s.Tag))))
-		if err := renderFile("service.ts.gotmpl", target, funcMap, map[string]any{"Client": client, "Service": s}); err != nil {
-			return err
-		}
-	}
-	// schemas (always render; may hold operation query interfaces even without models)
-	if err := renderFile("schema.ts.gotmpl", filepath.Join(srcDir, "schema.ts"), funcMap, map[string]any{"IR": in}); err != nil {
-		return err
-	}
-	// package.json
-	if err := renderFile("package.json.gotmpl", filepath.Join(client.OutDir, "package.json"), funcMap, map[string]any{"Client": client}); err != nil {
-		return err
-	}
-	// tsconfig.json
-	if err := renderFile("tsconfig.json.gotmpl", filepath.Join(client.OutDir, "tsconfig.json"), funcMap, map[string]any{"Client": client}); err != nil {
-		return err
-	}
-	return nil
-}
-
+// schemaToTSType converts an IR schema to TypeScript type string
 func schemaToTSType(s ir.IRSchema) string {
 	// Base type string without nullability; append null later
 	var t string
@@ -204,118 +113,8 @@ func schemaToTSType(s ir.IRSchema) string {
 	return t
 }
 
-// schemaToLocalTSType renders types for use inside schema.ts (no Schema. prefix for refs)
-func schemaToLocalTSType(s ir.IRSchema) string {
-	var t string
-	switch s.Kind {
-	case "string":
-		if s.Format == "binary" {
-			t = "Blob"
-		} else {
-			t = "string"
-		}
-	case "number", "integer":
-		t = "number"
-	case "boolean":
-		t = "boolean"
-	case "null":
-		t = "null"
-	case "ref":
-		if s.Ref != "" {
-			t = s.Ref
-		} else {
-			t = "unknown"
-		}
-	case "array":
-		if s.Items != nil {
-			inner := schemaToLocalTSType(*s.Items)
-			if strings.Contains(inner, " | ") || strings.Contains(inner, " & ") {
-				inner = "(" + inner + ")"
-			}
-			t = "Array<" + inner + ">"
-		} else {
-			t = "Array<unknown>"
-		}
-	case "oneOf":
-		parts := make([]string, 0, len(s.OneOf))
-		for _, sub := range s.OneOf {
-			parts = append(parts, schemaToLocalTSType(*sub))
-		}
-		t = strings.Join(parts, " | ")
-	case "anyOf":
-		parts := make([]string, 0, len(s.AnyOf))
-		for _, sub := range s.AnyOf {
-			parts = append(parts, schemaToLocalTSType(*sub))
-		}
-		t = strings.Join(parts, " | ")
-	case "allOf":
-		parts := make([]string, 0, len(s.AllOf))
-		for _, sub := range s.AllOf {
-			parts = append(parts, schemaToLocalTSType(*sub))
-		}
-		t = strings.Join(parts, " & ")
-	case "enum":
-		if len(s.EnumValues) > 0 {
-			vals := make([]string, 0, len(s.EnumValues))
-			switch s.EnumBase {
-			case "number", "integer":
-				for _, v := range s.EnumValues {
-					vals = append(vals, v)
-				}
-			case "boolean":
-				for _, v := range s.EnumValues {
-					if v == "true" || v == "false" {
-						vals = append(vals, v)
-					} else {
-						vals = append(vals, "\""+v+"\"")
-					}
-				}
-			default:
-				for _, v := range s.EnumValues {
-					vals = append(vals, "\""+v+"\"")
-				}
-			}
-			t = strings.Join(vals, " | ")
-		} else {
-			t = "unknown"
-		}
-	case "object":
-		if len(s.Properties) == 0 {
-			t = "Record<string, unknown>"
-		} else {
-			parts := make([]string, 0, len(s.Properties))
-			for _, f := range s.Properties {
-				ft := schemaToLocalTSType(*f.Type)
-				if f.Required {
-					parts = append(parts, f.Name+": "+ft)
-				} else {
-					parts = append(parts, f.Name+"?: "+ft)
-				}
-			}
-			t = "{" + strings.Join(parts, "; ") + "}"
-		}
-	default:
-		t = "unknown"
-	}
-	if s.Nullable && t != "null" {
-		t += " | null"
-	}
-	return t
-}
-func renderFile(tmplName, outPath string, fm template.FuncMap, data any) error {
-	t, err := template.New(tmplName).Funcs(sprig.TxtFuncMap()).Funcs(fm).ParseFS(templatesFS, "templates/"+tmplName)
-	if err != nil {
-		return err
-	}
-	f, err := os.Create(outPath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	return t.Execute(f, data)
-}
-
-func deriveMethodName(op IROperation) string {
+// deriveMethodName creates method names using basic REST-style heuristics
+func deriveMethodName(op ir.IROperation) string {
 	// Basic REST-style heuristics
 	// Examples:
 	// GET /brands -> list
@@ -347,7 +146,7 @@ func deriveMethodName(op IROperation) string {
 }
 
 // resolveMethodName chooses final method name using optional parser, then operationId, then heuristic
-func resolveMethodName(client config.Client, op IROperation) string {
+func resolveMethodName(client config.Client, op ir.IROperation) string {
 	// Default parse of operationId
 	defaultParsed := defaultParseOperationID(op.OperationID)
 	// try external parser (given original opId/method/path)
@@ -383,6 +182,7 @@ func defaultParseOperationID(opID string) string {
 
 var nonAlnum = regexp.MustCompile(`[^A-Za-z0-9]+`)
 
+// toPascalCase converts a string to PascalCase
 func toPascalCase(s string) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -402,6 +202,7 @@ func toPascalCase(s string) string {
 	return b.String()
 }
 
+// toCamelCase converts a string to camelCase
 func toCamelCase(s string) string {
 	p := toPascalCase(s)
 	if p == "" {
@@ -410,6 +211,7 @@ func toCamelCase(s string) string {
 	return strings.ToLower(p[:1]) + p[1:]
 }
 
+// toSnakeCase converts a string to snake_case
 func toSnakeCase(s string) string {
 	s = strings.TrimSpace(s)
 	s = nonAlnum.ReplaceAllString(s, " ")
@@ -420,6 +222,7 @@ func toSnakeCase(s string) string {
 	return strings.Join(fields, "_")
 }
 
+// toKebabCase converts a string to kebab-case
 func toKebabCase(s string) string {
 	s = strings.TrimSpace(s)
 	s = nonAlnum.ReplaceAllString(s, " ")
@@ -430,7 +233,8 @@ func toKebabCase(s string) string {
 	return strings.Join(fields, "-")
 }
 
-func buildPathTemplate(op IROperation) string {
+// buildPathTemplate converts OpenAPI path to TypeScript template literal
+func buildPathTemplate(op ir.IROperation) string {
 	// Convert /foo/{id}/bar/{slug} -> `/foo/${path.id}/bar/${path.slug}`
 	path := op.Path
 	// Find all {name} segments
@@ -460,7 +264,7 @@ func buildPathTemplate(op IROperation) string {
 
 // buildQueryKeyBase returns a TS string literal for the base of a react-query key.
 // Example: "/v1/organizations/{id}" -> "'v1/organizations'"
-func buildQueryKeyBase(op IROperation) string {
+func buildQueryKeyBase(op ir.IROperation) string {
 	path := op.Path
 	// Split by '/'; skip parameter placeholders like {id}
 	parts := strings.Split(path, "/")
@@ -478,9 +282,9 @@ func buildQueryKeyBase(op IROperation) string {
 	return "'" + base + "'"
 }
 
-func orderPathParams(op IROperation) []IRParam {
-	// Extract path parameter order as they appear in the path
-	ordered := []IRParam{}
+// orderPathParams extracts path parameter order as they appear in the path
+func orderPathParams(op ir.IROperation) []ir.IRParam {
+	ordered := []ir.IRParam{}
 	index := map[string]int{}
 	for i, p := range op.PathParams {
 		index[p.Name] = i
@@ -506,7 +310,7 @@ func orderPathParams(op IROperation) []IRParam {
 }
 
 // buildMethodSignature constructs the TS parameter list, using the provided methodName for query type name
-func buildMethodSignature(op IROperation, methodName string) []string {
+func buildMethodSignature(op ir.IROperation, methodName string) []string {
 	parts := []string{}
 	// path params as positional args
 	for _, p := range orderPathParams(op) {
@@ -537,7 +341,7 @@ func buildMethodSignature(op IROperation, methodName string) []string {
 // - path params in path order
 // - 'query' when there are query params
 // - 'body' when there's a request body
-func queryKeyArgs(op IROperation) []string {
+func queryKeyArgs(op ir.IROperation) []string {
 	out := []string{}
 	for _, p := range orderPathParams(op) {
 		out = append(out, p.Name)
