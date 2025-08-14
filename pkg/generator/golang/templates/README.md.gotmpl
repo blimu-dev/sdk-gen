@@ -1,0 +1,178 @@
+# {{ .Client.Name }} Go SDK
+
+This is an auto-generated Go SDK for the {{ .Client.Name }} API.
+
+## Installation
+
+```bash
+go get {{ .Client.PackageName }}
+```
+
+## Quick Start
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+
+    "{{ .Client.PackageName }}"
+)
+
+func main() {
+    // Create a new client
+    client := {{ clientName }}.NewClient(
+        {{ clientName }}.WithBaseURL("https://api.example.com"),
+        {{- range .IR.SecuritySchemes }}
+        {{- if eq .Type "http" }}
+        {{- if eq .Scheme "bearer" }}
+        {{ clientName }}.With{{ pascal .Key }}("your-token-here"),
+        {{- else if eq .Scheme "basic" }}
+        {{ clientName }}.With{{ pascal .Key }}("username", "password"),
+        {{- end }}
+        {{- else if eq .Type "apiKey" }}
+        {{ clientName }}.With{{ pascal .Key }}("your-api-key-here"),
+        {{- end }}
+        {{- end }}
+    )
+
+    ctx := context.Background()
+    
+    {{- range .IR.Services }}
+    {{- if gt (len .Operations) 0 }}
+    {{- $firstOp := index .Operations 0 }}
+    // Example: {{ $firstOp.Summary }}
+    {{- if $firstOp.QueryParams }}
+    query := &{{ clientName }}.{{ methodName $firstOp }}Query{
+        {{- range $firstOp.QueryParams }}
+        {{- if .Required }}
+        {{ pascal .Name }}: {{ if eq .Schema.Kind "string" }}"example"{{ else if eq .Schema.Kind "integer" }}123{{ else if eq .Schema.Kind "boolean" }}true{{ else }}nil{{ end }},
+        {{- end }}
+        {{- end }}
+    }
+    {{- end }}
+    {{- if $firstOp.RequestBody }}
+    body := {{ goType $firstOp.RequestBody.Schema }}{
+        // Fill in the required fields
+    }
+    {{- end }}
+    result, err := client.{{ serviceField .Tag }}.{{ methodName $firstOp }}(ctx{{ range pathParams $firstOp }}, "{{ .Name }}"{{ end }}{{ if $firstOp.QueryParams }}, query{{ end }}{{ if $firstOp.RequestBody }}, body{{ end }})
+    if err != nil {
+        log.Fatalf("Error: %v", err)
+    }
+    fmt.Printf("Result: %+v\n", result)
+    {{- break }}
+    {{- end }}
+    {{- end }}
+}
+```
+
+## Authentication
+
+This SDK supports the following authentication methods:
+
+{{- range .IR.SecuritySchemes }}
+### {{ pascal .Key }}
+{{- if eq .Type "http" }}
+{{- if eq .Scheme "bearer" }}
+
+Bearer token authentication:
+
+```go
+client := {{ clientName }}.NewClient(
+    {{ clientName }}.With{{ pascal .Key }}("your-bearer-token"),
+)
+```
+{{- else if eq .Scheme "basic" }}
+
+Basic authentication:
+
+```go
+client := {{ clientName }}.NewClient(
+    {{ clientName }}.With{{ pascal .Key }}("username", "password"),
+)
+```
+{{- end }}
+{{- else if eq .Type "apiKey" }}
+
+API Key authentication{{ if eq .In "header" }} (header){{ else if eq .In "query" }} (query parameter){{ end }}:
+
+```go
+client := {{ clientName }}.NewClient(
+    {{ clientName }}.With{{ pascal .Key }}("your-api-key"),
+)
+```
+{{- end }}
+{{- end }}
+
+## Available Services
+
+{{- range .IR.Services }}
+{{- if gt (len .Operations) 0 }}
+
+### {{ serviceName .Tag }}
+
+{{- range .Operations }}
+- **{{ methodName . }}**: {{ .Method }} {{ .Path }}{{ if .Summary }} - {{ .Summary }}{{ end }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+## Configuration Options
+
+You can customize the client with various options:
+
+```go
+client := {{ clientName }}.NewClient(
+    // Set custom base URL
+    {{ clientName }}.WithBaseURL("https://api.example.com"),
+    
+    // Set custom HTTP client
+    {{ clientName }}.WithHTTPClient(&http.Client{
+        Timeout: 30 * time.Second,
+    }),
+    
+    // Set default headers
+    {{ clientName }}.WithHeaders(map[string]string{
+        "User-Agent": "MyApp/1.0",
+    }),
+)
+```
+
+## Error Handling
+
+The SDK returns structured errors that you can handle:
+
+```go
+result, err := client.SomeService.SomeMethod(ctx)
+if err != nil {
+    if apiErr, ok := err.(*{{ clientName }}.APIError); ok {
+        fmt.Printf("API Error %d: %s\n", apiErr.StatusCode, apiErr.Message)
+    } else {
+        fmt.Printf("Other error: %v\n", err)
+    }
+    return
+}
+```
+
+## Models
+
+{{- if .IR.ModelDefs }}
+
+The SDK includes the following data models:
+
+{{- range .IR.ModelDefs }}
+- **{{ pascal .Name }}**{{ if .Annotations.Description }}: {{ .Annotations.Description }}{{ end }}
+{{- end }}
+{{- end }}
+
+## Contributing
+
+This SDK is auto-generated. Please do not edit the generated files directly. 
+If you find issues, please report them in the main project repository.
+
+## License
+
+This SDK is generated from the {{ .Client.Name }} API specification.

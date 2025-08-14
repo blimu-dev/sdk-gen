@@ -112,6 +112,10 @@ func (g *TypeScriptGenerator) Generate(client config.Client, in ir.IR) error {
 	if err := renderFile("tsconfig.json.gotmpl", filepath.Join(client.OutDir, "tsconfig.json"), funcMap, map[string]any{"Client": client}); err != nil {
 		return err
 	}
+	// README.md
+	if err := renderFile("README.md.gotmpl", filepath.Join(client.OutDir, "README.md"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
+		return err
+	}
 	return nil
 }
 

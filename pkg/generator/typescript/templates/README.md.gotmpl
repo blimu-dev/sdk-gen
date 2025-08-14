@@ -1,0 +1,253 @@
+# {{ .Client.Name }} TypeScript SDK
+
+This is an auto-generated TypeScript/JavaScript SDK for the {{ .Client.Name }} API.
+
+## Installation
+
+```bash
+npm install {{ .Client.PackageName }}
+# or
+yarn add {{ .Client.PackageName }}
+```
+
+## Quick Start
+
+```typescript
+import { {{ pascal .Client.Name }}Client } from '{{ .Client.PackageName }}';
+
+// Create a new client
+const client = new {{ pascal .Client.Name }}Client({
+  baseURL: 'https://api.example.com',
+  {{- range .IR.SecuritySchemes }}
+  {{- if eq .Type "http" }}
+  {{- if eq .Scheme "bearer" }}
+  {{ camel .Key }}: 'your-bearer-token',
+  {{- else if eq .Scheme "basic" }}
+  {{ camel .Key }}: { username: 'user', password: 'pass' },
+  {{- end }}
+  {{- else if eq .Type "apiKey" }}
+  {{ camel .Key }}: 'your-api-key',
+  {{- end }}
+  {{- end }}
+});
+
+{{- range .IR.Services }}
+{{- if gt (len .Operations) 0 }}
+{{- $firstOp := index .Operations 0 }}
+// Example: {{ $firstOp.Summary }}
+try {
+  const result = await client.{{ serviceProp .Tag }}.{{ methodName $firstOp }}(
+    {{- range pathParamsInOrder $firstOp }}'{{ .Name }}'{{ if not (eq . (index (pathParamsInOrder $firstOp) (sub (len (pathParamsInOrder $firstOp)) 1))) }}, {{ end }}{{ end }}
+    {{- if $firstOp.QueryParams }}{{ if pathParamsInOrder $firstOp }}, {{ end }}{
+      {{- range $firstOp.QueryParams }}
+      {{- if .Required }}
+      {{ .Name }}: {{ if eq .Schema.Kind "string" }}'example'{{ else if eq .Schema.Kind "integer" }}123{{ else if eq .Schema.Kind "boolean" }}true{{ else }}undefined{{ end }},
+      {{- end }}
+      {{- end }}
+    }{{ end }}
+    {{- if $firstOp.RequestBody }}{{ if or (pathParamsInOrder $firstOp) $firstOp.QueryParams }}, {{ end }}{
+      // Request body data
+    }{{ end }}
+  );
+  console.log('Result:', result);
+} catch (error) {
+  console.error('Error:', error);
+}
+{{- break }}
+{{- end }}
+{{- end }}
+```
+
+## Authentication
+
+This SDK supports the following authentication methods:
+
+{{- range .IR.SecuritySchemes }}
+### {{ pascal .Key }}
+{{- if eq .Type "http" }}
+{{- if eq .Scheme "bearer" }}
+
+Bearer token authentication:
+
+```typescript
+const client = new {{ pascal $.Client.Name }}Client({
+  {{ camel .Key }}: 'your-bearer-token',
+});
+```
+{{- else if eq .Scheme "basic" }}
+
+Basic authentication:
+
+```typescript
+const client = new {{ pascal $.Client.Name }}Client({
+  {{ camel .Key }}: {
+    username: 'your-username',
+    password: 'your-password',
+  },
+});
+```
+{{- end }}
+{{- else if eq .Type "apiKey" }}
+
+API Key authentication{{ if eq .In "header" }} (header){{ else if eq .In "query" }} (query parameter){{ end }}:
+
+```typescript
+const client = new {{ pascal $.Client.Name }}Client({
+  {{ camel .Key }}: 'your-api-key',
+});
+```
+{{- end }}
+{{- end }}
+
+## Available Services
+
+{{- range .IR.Services }}
+{{- if gt (len .Operations) 0 }}
+
+### {{ serviceName .Tag }}
+
+{{- range .Operations }}
+- **{{ methodName . }}**: {{ .Method }} {{ .Path }}{{ if .Summary }} - {{ .Summary }}{{ end }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+## Configuration Options
+
+You can customize the client with various options:
+
+```typescript
+const client = new {{ pascal .Client.Name }}Client({
+  // Set custom base URL
+  baseURL: 'https://api.example.com',
+  
+  // Set default headers
+  headers: {
+    'User-Agent': 'MyApp/1.0',
+    'Custom-Header': 'value',
+  },
+  
+  // Set custom fetch implementation (Node.js)
+  fetch: require('node-fetch'),
+});
+```
+
+## Error Handling
+
+The SDK throws structured errors that you can catch and handle:
+
+```typescript
+try {
+  const result = await client.someService.someMethod();
+} catch (error) {
+  if (error.status) {
+    console.error(`API Error ${error.status}:`, error.body);
+  } else {
+    console.error('Network or other error:', error.message);
+  }
+}
+```
+
+## TypeScript Support
+
+This SDK is written in TypeScript and provides full type safety:
+
+```typescript
+import { {{ pascal .Client.Name }}Client, Schema } from '{{ .Client.PackageName }}';
+
+const client = new {{ pascal .Client.Name }}Client({ /* config */ });
+
+// All methods are fully typed
+{{- range .IR.Services }}
+{{- if gt (len .Operations) 0 }}
+{{- $firstOp := index .Operations 0 }}
+const result: {{ tsType $firstOp.Response.Schema | stripSchemaNs }} = await client.{{ serviceProp .Tag }}.{{ methodName $firstOp }}(/* ... */);
+{{- break }}
+{{- end }}
+{{- end }}
+
+// Schema types are available
+{{- if .IR.ModelDefs }}
+{{- $firstModel := index .IR.ModelDefs 0 }}
+const data: Schema.{{ $firstModel.Name }} = {
+  // Fully typed object
+};
+{{- end }}
+```
+
+## Node.js Usage
+
+For Node.js environments, you may need to provide a fetch implementation:
+
+```bash
+npm install node-fetch @types/node-fetch
+```
+
+```typescript
+import fetch from 'node-fetch';
+import { {{ pascal .Client.Name }}Client } from '{{ .Client.PackageName }}';
+
+const client = new {{ pascal .Client.Name }}Client({
+  baseURL: 'https://api.example.com',
+  fetch: fetch as any,
+});
+```
+
+{{- if .Client.IncludeQueryKeys }}
+
+## React Query Integration
+
+This SDK includes query keys for easy integration with React Query:
+
+```typescript
+import { useQuery } from '@tanstack/react-query';
+import { client } from './api-client';
+
+function MyComponent() {
+  {{- range .IR.Services }}
+  {{- if gt (len .Operations) 0 }}
+  {{- $firstOp := index .Operations 0 }}
+  const { data, error, isLoading } = useQuery({
+    queryKey: client.{{ serviceProp .Tag }}.{{ methodName $firstOp }}__queryKeys(/* params */),
+    queryFn: () => client.{{ serviceProp .Tag }}.{{ methodName $firstOp }}(/* params */),
+  });
+  {{- break }}
+  {{- end }}
+  {{- end }}
+
+  if (isLoading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error.message}</div>;
+  
+  return <div>{/* Use data */}</div>;
+}
+```
+{{- end }}
+
+## Models and Types
+
+{{- if .IR.ModelDefs }}
+
+The SDK includes the following TypeScript interfaces:
+
+{{- range .IR.ModelDefs }}
+- **{{ .Name }}**{{ if .Annotations.Description }}: {{ .Annotations.Description }}{{ end }}
+{{- end }}
+
+All types are available under the `Schema` namespace:
+
+```typescript
+import { Schema } from '{{ .Client.PackageName }}';
+
+// Use any model type
+const user: Schema.User = { /* ... */ };
+```
+{{- end }}
+
+## Contributing
+
+This SDK is auto-generated. Please do not edit the generated files directly. 
+If you find issues, please report them in the main project repository.
+
+## License
+
+This SDK is generated from the {{ .Client.Name }} API specification.

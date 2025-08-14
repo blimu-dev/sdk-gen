@@ -1,7 +1,7 @@
 // Package sdkgen provides a powerful Go library for generating type-safe SDKs from OpenAPI specifications.
 //
 // This package offers both a simple API for common use cases and a flexible API for advanced scenarios.
-// It currently supports TypeScript SDK generation with plans for additional languages.
+// It currently supports TypeScript and Go SDK generation with plans for additional languages.
 //
 // Quick Start:
 //
@@ -41,6 +41,27 @@ import (
 //	)
 func GenerateTypeScriptSDK(spec, outDir, packageName, clientName string) error {
 	return generator.GenerateTypeScriptSDK(spec, outDir, packageName, clientName)
+}
+
+// GenerateGoSDK is a convenience function for generating a Go SDK with minimal configuration.
+// It generates a complete Go SDK from an OpenAPI specification.
+//
+// Parameters:
+//   - spec: Path to OpenAPI specification file or HTTP(S) URL
+//   - outDir: Output directory for the generated SDK
+//   - packageName: Go module name for the generated SDK
+//   - clientName: Name of the main client struct
+//
+// Example:
+//
+//	err := sdkgen.GenerateGoSDK(
+//		"./openapi.yaml",
+//		"./my-go-sdk",
+//		"github.com/myorg/my-api-client",
+//		"MyAPIClient",
+//	)
+func GenerateGoSDK(spec, outDir, packageName, clientName string) error {
+	return generator.GenerateGoSDK(spec, outDir, packageName, clientName)
 }
 
 // GenerateSDK generates an SDK with full configuration options.

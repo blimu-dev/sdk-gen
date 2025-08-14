@@ -1,0 +1,84 @@
+package {{ packageName }}
+
+import (
+	"context"
+	"fmt"
+	"net/url"
+)
+
+// {{ serviceName .Service.Tag }} handles {{ .Service.Tag }} related operations
+type {{ serviceName .Service.Tag }} struct {
+	client *Client
+}
+
+{{- range .Service.Operations }}
+
+{{- $method := methodName . }}
+{{- $pathParams := pathParams . }}
+{{- $queryParams := queryParams . }}
+{{- $hasQuery := hasQueryParams . }}
+{{- $hasBody := hasRequestBody . }}
+{{- $responseType := goType .Response.Schema }}
+
+// {{ $method }} {{ .Method }} {{ .Path }}
+{{- if .Summary }}
+// {{ .Summary }}
+{{- end }}
+{{- if .Description }}
+//
+// {{ .Description }}
+{{- end }}
+func (s *{{ serviceName $.Service.Tag }}) {{ methodSignature . }} {
+	{{- if $pathParams }}
+	// Build path with parameters
+	path := fmt.Sprintf({{ pathTemplate . }}{{ range $pathParams }}, {{ camel .Name }}{{ end }})
+	{{- else }}
+	path := "{{ .Path }}"
+	{{- end }}
+	
+	{{- if $hasQuery }}
+	// Convert query parameters
+	var queryValues url.Values
+	if query != nil {
+		queryValues = query.ToValues()
+	}
+	{{- else }}
+	var queryValues url.Values
+	{{- end }}
+	
+	{{- if $hasBody }}
+	// Make request with body
+	resp, err := s.client.request(ctx, "{{ .Method }}", path, queryValues, body, nil)
+	{{- else }}
+	// Make request
+	resp, err := s.client.request(ctx, "{{ .Method }}", path, queryValues, nil, nil)
+	{{- end }}
+	if err != nil {
+		{{- if eq $responseType "interface{}" }}
+		return nil, err
+		{{- else }}
+		var zero {{ $responseType }}
+		return zero, err
+		{{- end }}
+	}
+	
+	{{- if eq $responseType "interface{}" }}
+	var result interface{}
+	{{- else if eq $responseType "string" }}
+	var result string
+	{{- else }}
+	var result {{ $responseType }}
+	{{- end }}
+	
+	if err := s.client.decodeResponse(resp, &result); err != nil {
+		{{- if eq $responseType "interface{}" }}
+		return nil, err
+		{{- else }}
+		var zero {{ $responseType }}
+		return zero, err
+		{{- end }}
+	}
+	
+	return result, nil
+}
+{{- end }}

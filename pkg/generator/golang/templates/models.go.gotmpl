@@ -1,0 +1,82 @@
+package {{ packageName }}
+
+import (
+	"fmt"
+	"net/url"
+)
+
+{{- if .IR.ModelDefs }}
+
+// Generated models from OpenAPI specification
+
+{{- range .IR.ModelDefs }}
+
+// {{ pascal .Name }} {{ if .Annotations.Description }}{{ .Annotations.Description }}{{ end }}
+type {{ pascal .Name }} struct {
+	{{- range .Schema.Properties }}
+	{{ pascal .Name }} {{ goType .Type }} {{ goStructTag .Name }}{{ if .Annotations.Description }} // {{ .Annotations.Description }}{{ end }}
+	{{- end }}
+}
+{{- end }}
+
+{{- end }}
+
+{{- if .IR.Models }}
+{{- range .IR.Models }}
+// {{ .Name }} represents a model from the API
+{{ .Decl }}
+{{- end }}
+{{- end }}
+
+// Query parameter structs for operations
+{{- range .IR.Services }}
+{{- range .Operations }}
+{{- if .QueryParams }}
+
+// {{ methodName . }}Query represents query parameters for {{ methodName . }}
+type {{ methodName . }}Query struct {
+	{{- range .QueryParams }}
+	{{ pascal .Name }} {{ if not .Required }}*{{ end }}{{ goType .Schema }} {{ goStructTag .Name }}{{ if .Description }} // {{ .Description }}{{ end }}
+	{{- end }}
+}
+
+// ToValues converts the query struct to url.Values
+func (q *{{ methodName . }}Query) ToValues() url.Values {
+	if q == nil {
+		return nil
+	}
+	
+	values := make(url.Values)
+	{{- range .QueryParams }}
+	{{- if .Required }}
+	// Handle {{ .Name }} parameter
+	{{- if eq .Schema.Kind "array" }}
+	for _, v := range q.{{ pascal .Name }} {
+		values.Add("{{ .Name }}", fmt.Sprintf("%v", v))
+	}
+	{{- else }}
+	if fmt.Sprintf("%v", q.{{ pascal .Name }}) != "" {
+		values.Set("{{ .Name }}", fmt.Sprintf("%v", q.{{ pascal .Name }}))
+	}
+	{{- end }}
+	{{- else }}
+	// Handle optional {{ .Name }} parameter
+	{{- if eq .Schema.Kind "array" }}
+	if q.{{ pascal .Name }} != nil {
+		for _, v := range *q.{{ pascal .Name }} {
+			values.Add("{{ .Name }}", fmt.Sprintf("%v", v))
+		}
+	}
+	{{- else }}
+	if q.{{ pascal .Name }} != nil {
+		values.Set("{{ .Name }}", fmt.Sprintf("%v", *q.{{ pascal .Name }}))
+	}
+	{{- end }}
+	{{- end }}
+	{{- end }}
+	
+	return values
+}
+{{- end }}
+{{- end }}
+{{- end }}

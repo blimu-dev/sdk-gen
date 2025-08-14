@@ -2,8 +2,12 @@ package generator
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/blimu-dev/sdk-gen/pkg/config"
+	"github.com/blimu-dev/sdk-gen/pkg/generator/golang"
 	"github.com/blimu-dev/sdk-gen/pkg/generator/typescript"
 	"github.com/blimu-dev/sdk-gen/pkg/ir"
 	"github.com/blimu-dev/sdk-gen/pkg/openapi"
@@ -77,6 +81,7 @@ func NewService() *Service {
 	registry := NewRegistry()
 	// Register default generators
 	registry.Register(typescript.NewTypeScriptGenerator())
+	registry.Register(golang.NewGoGenerator())
 	return &Service{
 		registry: registry,
 	}
@@ -158,6 +163,13 @@ func (s *Service) GenerateFromConfig(cfg *config.Config, onlyClient string) erro
 		if err := generator.Generate(client, filteredIR); err != nil {
 			return err
 		}
+
+		// Execute post-generation command if specified
+		if client.PostGenCommand != "" {
+			if err := s.executePostGenCommand(client); err != nil {
+				return fmt.Errorf("post-generation command failed for client %s: %w", client.Name, err)
+			}
+		}
 	}
 
 	return nil
@@ -166,4 +178,25 @@ func (s *Service) GenerateFromConfig(cfg *config.Config, onlyClient string) erro
 // GetRegistry returns the generator registry
 func (s *Service) GetRegistry() *Registry {
 	return s.registry
+}
+
+// executePostGenCommand executes the post-generation command for a client
+func (s *Service) executePostGenCommand(client config.Client) error {
+	// Parse the command and arguments
+	parts := strings.Fields(client.PostGenCommand)
+	if len(parts) == 0 {
+		return nil // Empty command, nothing to do
+	}
+
+	command := parts[0]
+	args := parts[1:]
+
+	// Create the command
+	cmd := exec.Command(command, args...)
+	cmd.Dir = client.OutDir // Execute in the output directory
+	cmd.Stdout = os.Stdout  // Forward stdout to see command output
+	cmd.Stderr = os.Stderr  // Forward stderr to see errors
+
+	// Execute the command
+	return cmd.Run()
 }

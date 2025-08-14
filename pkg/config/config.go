@@ -30,6 +30,9 @@ type Client struct {
 	// OperationIDParser is an optional executable script to transform operationId to a method name.
 	// It will be executed as: <parser> <operationId> <method> <path>
 	OperationIDParser string `yaml:"operationIdParser"`
+	// PostGenCommand is an optional command to run after SDK generation completes.
+	// It will be executed in the output directory. Useful for formatting, linting, or cleanup.
+	PostGenCommand string `yaml:"postGenCommand"`
 }
 
 // Load loads configuration from a YAML file

@@ -1,0 +1,28 @@
+# You can point to a local file or an HTTP(S) URL
+# spec: https://petstore3.swagger.io/api/v3/openapi.json
+spec: http://localhost:3000/docs/json
+name: "Example SDKs"
+clients:
+  - type: typescript
+    outDir: ./sdks/ts-public
+    packageName: "@blimu/sdk"
+    name: "Blimu"
+    includeQueryKeys: true
+    # operationIdParser: ./scripts/parse-op-id.sh
+    postGenCommand: "npx prettier --write ."
+
+    # includeTags: [".*"]
+    # excludeTags: ["^internal$", "^experimental$"]
+
+  - type: go
+    outDir: ./sdks/go-public
+    packageName: "github.com/blimu/sdk-go"
+    name: "Blimu"
+    # Option 1: Use absolute path (current working solution)
+    postGenCommand: "/absolute/path/to/sdk-gen/scripts/format-go.sh"
+
+    # Option 2: Add scripts to PATH and use:
+    # postGenCommand: "format-go.sh"
+
+    # includeTags: [".*"]
+    # excludeTags: ["^internal$", "^experimental$"]

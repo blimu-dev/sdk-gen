@@ -1,0 +1,244 @@
+// Package {{ packageName }} provides a Go SDK for {{ .Client.Name }}
+package {{ packageName }}
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+)
+
+// ClientOption configures the client
+type ClientOption func(*Client)
+
+// WithBaseURL sets the base URL for the client
+func WithBaseURL(baseURL string) ClientOption {
+	return func(c *Client) {
+		c.baseURL = baseURL
+	}
+}
+
+// WithHTTPClient sets a custom HTTP client
+func WithHTTPClient(httpClient *http.Client) ClientOption {
+	return func(c *Client) {
+		c.httpClient = httpClient
+	}
+}
+
+// WithHeaders sets default headers for all requests
+func WithHeaders(headers map[string]string) ClientOption {
+	return func(c *Client) {
+		if c.headers == nil {
+			c.headers = make(map[string]string)
+		}
+		for k, v := range headers {
+			c.headers[k] = v
+		}
+	}
+}
+
+{{- $schemes := .IR.SecuritySchemes }}
+{{- range $s := $schemes }}
+{{- if eq $s.Type "http" }}
+{{- if eq $s.Scheme "bearer" }}
+
+// With{{ pascal $s.Key }} sets the bearer token for authentication
+func With{{ pascal $s.Key }}(token string) ClientOption {
+	return func(c *Client) {
+		c.{{ camel $s.Key }} = token
+	}
+}
+{{- else if eq $s.Scheme "basic" }}
+
+// With{{ pascal $s.Key }} sets basic authentication credentials
+func With{{ pascal $s.Key }}(username, password string) ClientOption {
+	return func(c *Client) {
+		c.{{ camel $s.Key }}Username = username
+		c.{{ camel $s.Key }}Password = password
+	}
+}
+{{- end }}
+{{- else if eq $s.Type "apiKey" }}
+
+// With{{ pascal $s.Key }} sets the API key for authentication
+func With{{ pascal $s.Key }}(apiKey string) ClientOption {
+	return func(c *Client) {
+		c.{{ camel $s.Key }} = apiKey
+	}
+}
+{{- end }}
+{{- end }}
+
+// Client is the main client for the {{ .Client.Name }} API
+type Client struct {
+	baseURL    string
+	httpClient *http.Client
+	headers    map[string]string
+	
+	{{- range $s := $schemes }}
+	{{- if eq $s.Type "http" }}
+	{{- if eq $s.Scheme "bearer" }}
+	{{ camel $s.Key }} string
+	{{- else if eq $s.Scheme "basic" }}
+	{{ camel $s.Key }}Username string
+	{{ camel $s.Key }}Password string
+	{{- end }}
+	{{- else if eq $s.Type "apiKey" }}
+	{{ camel $s.Key }} string
+	{{- end }}
+	{{- end }}
+	
+	// Services
+	{{- range .IR.Services }}
+	{{- if gt (len .Operations) 0 }}
+	{{ serviceField .Tag }} *{{ serviceName .Tag }}
+	{{- end }}
+	{{- end }}
+}
+
+// NewClient creates a new client with the given options
+func NewClient(opts ...ClientOption) *Client {
+	c := &Client{
+		baseURL:    "",
+		httpClient: http.DefaultClient,
+		headers:    make(map[string]string),
+	}
+	
+	for _, opt := range opts {
+		opt(c)
+	}
+	
+	// Initialize services
+	{{- range .IR.Services }}
+	{{- if gt (len .Operations) 0 }}
+	c.{{ serviceField .Tag }} = &{{ serviceName .Tag }}{client: c}
+	{{- end }}
+	{{- end }}
+	
+	return c
+}
+
+// request makes an HTTP request
+func (c *Client) request(ctx context.Context, method, path string, query url.Values, body interface{}, headers map[string]string) (*http.Response, error) {
+	// Build URL
+	u, err := url.Parse(c.baseURL + path)
+	if err != nil {
+		return nil, fmt.Errorf("invalid URL: %w", err)
+	}
+	
+	if query != nil {
+		u.RawQuery = query.Encode()
+	}
+	
+	// Prepare request body
+	var reqBody io.Reader
+	if body != nil {
+		jsonBody, err := json.Marshal(body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal request body: %w", err)
+		}
+		reqBody = bytes.NewReader(jsonBody)
+	}
+	
+	// Create request
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	
+	// Set headers
+	for k, v := range c.headers {
+		req.Header.Set(k, v)
+	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	
+	// Set content type for JSON bodies
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	
+	// Set authentication headers
+	{{- range $s := $schemes }}
+	{{- if eq $s.Type "http" }}
+	{{- if eq $s.Scheme "bearer" }}
+	if c.{{ camel $s.Key }} != "" {
+		req.Header.Set("Authorization", "Bearer "+c.{{ camel $s.Key }})
+	}
+	{{- else if eq $s.Scheme "basic" }}
+	if c.{{ camel $s.Key }}Username != "" && c.{{ camel $s.Key }}Password != "" {
+		req.SetBasicAuth(c.{{ camel $s.Key }}Username, c.{{ camel $s.Key }}Password)
+	}
+	{{- end }}
+	{{- else if eq $s.Type "apiKey" }}
+	{{- if eq $s.In "header" }}
+	if c.{{ camel $s.Key }} != "" {
+		req.Header.Set("{{ $s.Name }}", c.{{ camel $s.Key }})
+	}
+	{{- else if eq $s.In "query" }}
+	if c.{{ camel $s.Key }} != "" {
+		q := req.URL.Query()
+		q.Set("{{ $s.Name }}", c.{{ camel $s.Key }})
+		req.URL.RawQuery = q.Encode()
+	}
+	{{- end }}
+	{{- end }}
+	{{- end }}
+	
+	// Make request
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	
+	return resp, nil
+}
+
+// decodeResponse decodes an HTTP response into the given interface
+func (c *Client) decodeResponse(resp *http.Response, v interface{}) error {
+	defer resp.Body.Close()
+	
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return &APIError{
+			StatusCode: resp.StatusCode,
+			Message:    string(body),
+		}
+	}
+	
+	if v == nil {
+		return nil
+	}
+	
+	contentType := resp.Header.Get("Content-Type")
+	if strings.Contains(contentType, "application/json") {
+		return json.NewDecoder(resp.Body).Decode(v)
+	}
+	
+	// For non-JSON responses, read as string if the target is a string pointer
+	if strPtr, ok := v.(*string); ok {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		*strPtr = string(body)
+		return nil
+	}
+	
+	return fmt.Errorf("unsupported content type: %s", contentType)
+}
+
+// APIError represents an API error response
+type APIError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("API error %d: %s", e.StatusCode, e.Message)
+}

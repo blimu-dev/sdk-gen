@@ -63,6 +63,23 @@ func GenerateTypeScriptSDK(spec, outDir, packageName, clientName string) error {
 	})
 }
 
+// GenerateGoSDK is a convenience function specifically for Go SDK generation
+func GenerateGoSDK(spec, outDir, packageName, clientName string) error {
+	// Ensure absolute path for outDir
+	absOutDir, err := filepath.Abs(outDir)
+	if err != nil {
+		return err
+	}
+
+	return GenerateSDK(GenerateSDKOptions{
+		Spec:        spec,
+		Type:        "go",
+		OutDir:      absOutDir,
+		PackageName: packageName,
+		Name:        clientName,
+	})
+}
+
 // GenerateFromConfig is a convenience function for generating from a config file
 func GenerateFromConfig(configPath string, singleClient ...string) error {
 	service := NewService()

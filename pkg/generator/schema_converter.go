@@ -288,8 +288,46 @@ func schemaRefToIRWithNaming(doc *openapi3.T, sr *openapi3.SchemaRef, parentName
 			}
 			var addl *ir.IRSchema
 			if s.AdditionalProperties.Schema != nil {
-				aps := schemaRefToIRWithNaming(doc, s.AdditionalProperties.Schema, parentName, "AdditionalProperties", false, out, seen)
-				addl = &aps
+				addlSchema := s.AdditionalProperties.Schema
+
+				// If additionalProperties is an object with properties, merge them into the parent
+				if addlSchema.Value != nil && addlSchema.Value.Type != nil &&
+					addlSchema.Value.Type.Is(openapi3.TypeObject) && len(addlSchema.Value.Properties) > 0 {
+
+					// Merge additionalProperties into the current object's fields
+					addlPropNames := make([]string, 0, len(addlSchema.Value.Properties))
+					for n := range addlSchema.Value.Properties {
+						addlPropNames = append(addlPropNames, n)
+					}
+					sort.Strings(addlPropNames)
+
+					for _, n := range addlPropNames {
+						pr := addlSchema.Value.Properties[n]
+						fType := schemaRefToIRWithNaming(doc, pr, parentName, n, false, out, seen)
+						required := false
+						for _, r := range addlSchema.Value.Required {
+							if r == n {
+								required = true
+								break
+							}
+						}
+						fields = append(fields, ir.IRField{Name: n, Type: &fType, Required: required, Annotations: extractAnnotations(pr)})
+					}
+
+					// Don't set addl since we merged the properties
+					addl = nil
+				} else {
+					// For non-object additionalProperties, keep the current behavior
+					addlParent := parentName
+					if propName != "" {
+						addlParent = addlParent + "_" + toPascal(propName)
+					}
+					if isArrayItem {
+						addlParent = addlParent + "_Item"
+					}
+					aps := schemaRefToIRWithNaming(doc, s.AdditionalProperties.Schema, addlParent, "Properties", false, out, seen)
+					addl = &aps
+				}
 			}
 			// If this object itself is nested (not top-level), produce a named ref
 			if propName != "" || isArrayItem {
@@ -390,8 +428,39 @@ func buildNamedObjectDef(doc *openapi3.T, s *openapi3.Schema, name string, out *
 	}
 	var addl *ir.IRSchema
 	if s.AdditionalProperties.Schema != nil {
-		aps := schemaRefToIRWithNaming(doc, s.AdditionalProperties.Schema, name, "AdditionalProperties", false, out, seen)
-		addl = &aps
+		addlSchema := s.AdditionalProperties.Schema
+
+		// If additionalProperties is an object with properties, merge them into the parent
+		if addlSchema.Value != nil && addlSchema.Value.Type != nil &&
+			addlSchema.Value.Type.Is(openapi3.TypeObject) && len(addlSchema.Value.Properties) > 0 {
+
+			// Merge additionalProperties into the current object's fields
+			addlPropNames := make([]string, 0, len(addlSchema.Value.Properties))
+			for n := range addlSchema.Value.Properties {
+				addlPropNames = append(addlPropNames, n)
+			}
+			sort.Strings(addlPropNames)
+
+			for _, n := range addlPropNames {
+				pr := addlSchema.Value.Properties[n]
+				fType := schemaRefToIRWithNaming(doc, pr, name, n, false, out, seen)
+				required := false
+				for _, r := range addlSchema.Value.Required {
+					if r == n {
+						required = true
+						break
+					}
+				}
+				fields = append(fields, ir.IRField{Name: n, Type: &fType, Required: required, Annotations: extractAnnotations(pr)})
+			}
+
+			// Don't set addl since we merged the properties
+			addl = nil
+		} else {
+			// For non-object additionalProperties, keep the current behavior
+			aps := schemaRefToIRWithNaming(doc, s.AdditionalProperties.Schema, name, "Properties", false, out, seen)
+			addl = &aps
+		}
 	}
 	return ir.IRModelDef{
 		Name:        name,
@@ -400,12 +469,30 @@ func buildNamedObjectDef(doc *openapi3.T, s *openapi3.Schema, name string, out *
 	}
 }
 
+var nonAlnumSchema = regexp.MustCompile(`[^A-Za-z0-9]+`)
+
 // toPascal converts a string to PascalCase
 func toPascal(s string) string {
-	// Simple PascalCase conversion
-	parts := regexp.MustCompile(`[^A-Za-z0-9]+`).Split(strings.TrimSpace(s), -1)
-	var b strings.Builder
-	for _, p := range parts {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+
+	// First split by non-alphanumeric characters
+	parts := nonAlnumSchema.Split(s, -1)
+	var allParts []string
+
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
+		// Further split camelCase/PascalCase words
+		subParts := splitCamelCaseSchema(part)
+		allParts = append(allParts, subParts...)
+	}
+
+	b := strings.Builder{}
+	for _, p := range allParts {
 		if p == "" {
 			continue
 		}
@@ -415,4 +502,49 @@ func toPascal(s string) string {
 		}
 	}
 	return b.String()
+}
+
+// splitCamelCaseSchema splits a camelCase or PascalCase string into words
+func splitCamelCaseSchema(s string) []string {
+	if s == "" {
+		return nil
+	}
+
+	var parts []string
+	var current strings.Builder
+
+	runes := []rune(s)
+	for i, r := range runes {
+		// Check if this is the start of a new word
+		isNewWord := false
+		if i > 0 && isUppercaseSchema(r) {
+			// Current char is uppercase
+			if !isUppercaseSchema(runes[i-1]) {
+				// Previous char was lowercase, so this starts a new word
+				isNewWord = true
+			} else if i < len(runes)-1 && !isUppercaseSchema(runes[i+1]) {
+				// Previous char was uppercase, but next char is lowercase
+				// This handles cases like "XMLHttp" -> "XML", "Http"
+				isNewWord = true
+			}
+		}
+
+		if isNewWord && current.Len() > 0 {
+			parts = append(parts, current.String())
+			current.Reset()
+		}
+
+		current.WriteRune(r)
+	}
+
+	if current.Len() > 0 {
+		parts = append(parts, current.String())
+	}
+
+	return parts
+}
+
+// isUppercaseSchema checks if a rune is uppercase
+func isUppercaseSchema(r rune) bool {
+	return r >= 'A' && r <= 'Z'
 }
