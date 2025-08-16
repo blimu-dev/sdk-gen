@@ -181,19 +181,44 @@ func defaultParseOperationID(opID string) string {
 }
 
 var nonAlnum = regexp.MustCompile(`[^A-Za-z0-9]+`)
+var camelSplit = regexp.MustCompile(`([a-z0-9])([A-Z])`)
+
+// splitWords splits a string into words, handling camelCase, PascalCase, snake_case, and kebab-case
+func splitWords(s string) []string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+
+	// First, handle camelCase/PascalCase by inserting separators before capital letters
+	s = camelSplit.ReplaceAllString(s, "$1 $2")
+
+	// Then split on non-alphanumeric characters and spaces
+	parts := regexp.MustCompile(`[^A-Za-z0-9]+`).Split(s, -1)
+
+	// Filter out empty parts
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
+}
 
 // toPascalCase converts a string to PascalCase
 func toPascalCase(s string) string {
-	s = strings.TrimSpace(s)
-	if s == "" {
+	parts := splitWords(s)
+	if len(parts) == 0 {
 		return ""
 	}
-	parts := nonAlnum.Split(s, -1)
+
 	b := strings.Builder{}
 	for _, p := range parts {
 		if p == "" {
 			continue
 		}
+		// Capitalize first letter, keep rest of the word as lowercase
 		b.WriteString(strings.ToUpper(p[:1]))
 		if len(p) > 1 {
 			b.WriteString(strings.ToLower(p[1:]))
@@ -213,24 +238,28 @@ func toCamelCase(s string) string {
 
 // toSnakeCase converts a string to snake_case
 func toSnakeCase(s string) string {
-	s = strings.TrimSpace(s)
-	s = nonAlnum.ReplaceAllString(s, " ")
-	fields := strings.Fields(s)
-	for i := range fields {
-		fields[i] = strings.ToLower(fields[i])
+	parts := splitWords(s)
+	if len(parts) == 0 {
+		return ""
 	}
-	return strings.Join(fields, "_")
+
+	for i := range parts {
+		parts[i] = strings.ToLower(parts[i])
+	}
+	return strings.Join(parts, "_")
 }
 
 // toKebabCase converts a string to kebab-case
 func toKebabCase(s string) string {
-	s = strings.TrimSpace(s)
-	s = nonAlnum.ReplaceAllString(s, " ")
-	fields := strings.Fields(s)
-	for i := range fields {
-		fields[i] = strings.ToLower(fields[i])
+	parts := splitWords(s)
+	if len(parts) == 0 {
+		return ""
 	}
-	return strings.Join(fields, "-")
+
+	for i := range parts {
+		parts[i] = strings.ToLower(parts[i])
+	}
+	return strings.Join(parts, "-")
 }
 
 // buildPathTemplate converts OpenAPI path to TypeScript template literal

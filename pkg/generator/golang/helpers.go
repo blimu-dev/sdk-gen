@@ -304,7 +304,7 @@ func orderPathParams(op ir.IROperation) []ir.IRParam {
 }
 
 // buildMethodSignature builds the method signature for a Go method
-func buildMethodSignature(op ir.IROperation, methodName string) string {
+func buildMethodSignature(client config.Client, op ir.IROperation, methodName string) string {
 	var params []string
 
 	// Context parameter (always first)
@@ -318,7 +318,39 @@ func buildMethodSignature(op ir.IROperation, methodName string) string {
 
 	// Query parameters (as a struct)
 	if len(op.QueryParams) > 0 {
-		params = append(params, fmt.Sprintf("query *%sQuery", methodName))
+		// Use proper naming that includes the operation tag/service name
+		queryTypeName := toPascalCase(op.Tag) + strings.TrimSuffix(ResolveMethodName(client, op), "WithContext") + "Query"
+		params = append(params, fmt.Sprintf("query *%s", queryTypeName))
+	}
+
+	// Request body
+	if op.RequestBody != nil {
+		goType := schemaToGoType(op.RequestBody.Schema)
+		params = append(params, fmt.Sprintf("body %s", goType))
+	}
+
+	// Return type
+	responseType := schemaToGoType(op.Response.Schema)
+
+	signature := fmt.Sprintf("%s(%s) (%s, error)", methodName, strings.Join(params, ", "), responseType)
+	return signature
+}
+
+// buildMethodSignatureNoContext builds the method signature without context parameter
+func buildMethodSignatureNoContext(client config.Client, op ir.IROperation, methodName string) string {
+	var params []string
+
+	// Path parameters (no context parameter)
+	for _, param := range orderPathParams(op) {
+		goType := schemaToGoType(param.Schema)
+		params = append(params, fmt.Sprintf("%s %s", toCamelCase(param.Name), goType))
+	}
+
+	// Query parameters (as a struct)
+	if len(op.QueryParams) > 0 {
+		// Use proper naming that includes the operation tag/service name
+		queryTypeName := toPascalCase(op.Tag) + ResolveMethodName(client, op) + "Query"
+		params = append(params, fmt.Sprintf("query *%s", queryTypeName))
 	}
 
 	// Request body

@@ -73,6 +73,21 @@ func With{{ pascal $s.Key }}(apiKey string) ClientOption {
 {{- end }}
 {{- end }}
 
+{{ $grouped := groupByNamespace .IR.Services }}
+{{- range $namespace, $services := $grouped }}
+{{- if ne $namespace "" }}
+// {{ pascal $namespace }}Namespace contains services for the {{ $namespace }} namespace
+type {{ pascal $namespace }}Namespace struct {
+	{{- range $services }}
+	{{- if gt (len .Operations) 0 }}
+	{{ serviceField (getServiceName .Tag) }} *{{ serviceName .Tag }}
+	{{- end }}
+	{{- end }}
+}
+
+{{- end }}
+{{- end }}
+
 // Client is the main client for the {{ .Client.Name }} API
 type Client struct {
 	baseURL    string
@@ -93,9 +108,16 @@ type Client struct {
 	{{- end }}
 	
 	// Services
-	{{- range .IR.Services }}
+	{{ $grouped := groupByNamespace .IR.Services }}
+	{{- $rootServices := index $grouped "" }}
+	{{- range $rootServices }}
 	{{- if gt (len .Operations) 0 }}
 	{{ serviceField .Tag }} *{{ serviceName .Tag }}
+	{{- end }}
+	{{- end }}
+	{{- range $namespace, $services := $grouped }}
+	{{- if ne $namespace "" }}
+	{{ serviceField $namespace }} *{{ pascal $namespace }}Namespace
 	{{- end }}
 	{{- end }}
 }
@@ -103,7 +125,7 @@ type Client struct {
 // NewClient creates a new client with the given options
 func NewClient(opts ...ClientOption) *Client {
 	c := &Client{
-		baseURL:    "",
+		baseURL:    "{{ .Client.DefaultBaseURL }}",
 		httpClient: http.DefaultClient,
 		headers:    make(map[string]string),
 	}
@@ -113,9 +135,22 @@ func NewClient(opts ...ClientOption) *Client {
 	}
 	
 	// Initialize services
-	{{- range .IR.Services }}
+	{{ $grouped := groupByNamespace .IR.Services }}
+	{{- $rootServices := index $grouped "" }}
+	{{- range $rootServices }}
 	{{- if gt (len .Operations) 0 }}
 	c.{{ serviceField .Tag }} = &{{ serviceName .Tag }}{client: c}
+	{{- end }}
+	{{- end }}
+	{{- range $namespace, $services := $grouped }}
+	{{- if ne $namespace "" }}
+	c.{{ serviceField $namespace }} = &{{ pascal $namespace }}Namespace{
+		{{- range $services }}
+		{{- if gt (len .Operations) 0 }}
+		{{ serviceField (getServiceName .Tag) }}: &{{ serviceName .Tag }}{client: c},
+		{{- end }}
+		{{- end }}
+	}
 	{{- end }}
 	{{- end }}
 	
@@ -178,7 +213,7 @@ func (c *Client) request(ctx context.Context, method, path string, query url.Val
 	{{- else if eq $s.Type "apiKey" }}
 	{{- if eq $s.In "header" }}
 	if c.{{ camel $s.Key }} != "" {
-		req.Header.Set("{{ $s.Name }}", c.{{ camel $s.Key }})
+		req.Header.Set("{{ $s.Name }}",  c.{{ camel $s.Key }})
 	}
 	{{- else if eq $s.In "query" }}
 	if c.{{ camel $s.Key }} != "" {

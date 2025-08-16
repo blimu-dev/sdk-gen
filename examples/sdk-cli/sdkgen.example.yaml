@@ -7,9 +7,11 @@ clients:
     outDir: ./sdks/ts-public
     packageName: "@blimu/sdk"
     name: "Blimu"
+    defaultBaseURL: "https://api.blimu.com"
     includeQueryKeys: true
     # operationIdParser: ./scripts/parse-op-id.sh
-    postGenCommand: "npx prettier --write ."
+    preCommand: ["rm", "-rf", "src/"]
+    postCommand: ["npx", "prettier", "--write", "."]
 
     # includeTags: [".*"]
     # excludeTags: ["^internal$", "^experimental$"]
@@ -18,11 +20,12 @@ clients:
     outDir: ./sdks/go-public
     packageName: "github.com/blimu/sdk-go"
     name: "Blimu"
-    # Option 1: Use absolute path (current working solution)
-    postGenCommand: "/absolute/path/to/sdk-gen/scripts/format-go.sh"
+    defaultBaseURL: "https://api.blimu.com"
+    preCommand: ["rm", "-rf", "*.go"]
+    postCommand: ["goimports", "-w", "."]
 
-    # Option 2: Add scripts to PATH and use:
-    # postGenCommand: "format-go.sh"
+    # For complex shell commands, use bash -c:
+    # postCommand: ["bash", "-c", "go mod tidy && go test ./... || echo 'Tests failed'"]
 
     # includeTags: [".*"]
     # excludeTags: ["^internal$", "^experimental$"]

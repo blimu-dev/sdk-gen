@@ -154,6 +154,16 @@ func (s *Service) GenerateFromConfig(cfg *config.Config, onlyClient string) erro
 			return fmt.Errorf("unsupported client type: %s", client.Type)
 		}
 
+		// Ensure output directory exists before pre-commands
+		if err := os.MkdirAll(client.OutDir, 0o755); err != nil {
+			return fmt.Errorf("failed to create output directory for client %s: %w", client.Name, err)
+		}
+
+		// Execute pre-generation commands if specified
+		if err := s.executePreCommands(client); err != nil {
+			return fmt.Errorf("pre-generation commands failed for client %s: %w", client.Name, err)
+		}
+
 		// Filter IR based on client configuration
 		filteredIR, err := s.filterIR(fullIR, client)
 		if err != nil {
@@ -164,11 +174,9 @@ func (s *Service) GenerateFromConfig(cfg *config.Config, onlyClient string) erro
 			return err
 		}
 
-		// Execute post-generation command if specified
-		if client.PostGenCommand != "" {
-			if err := s.executePostGenCommand(client); err != nil {
-				return fmt.Errorf("post-generation command failed for client %s: %w", client.Name, err)
-			}
+		// Execute post-generation commands if specified
+		if err := s.executePostGenCommands(client); err != nil {
+			return fmt.Errorf("post-generation commands failed for client %s: %w", client.Name, err)
 		}
 	}
 
@@ -180,23 +188,44 @@ func (s *Service) GetRegistry() *Registry {
 	return s.registry
 }
 
-// executePostGenCommand executes the post-generation command for a client
-func (s *Service) executePostGenCommand(client config.Client) error {
-	// Parse the command and arguments
-	parts := strings.Fields(client.PostGenCommand)
-	if len(parts) == 0 {
-		return nil // Empty command, nothing to do
+// executePreCommands executes the pre-generation command for a client
+func (s *Service) executePreCommands(client config.Client) error {
+	command := client.GetPreCommand()
+	if len(command) == 0 {
+		return nil // No command to execute
 	}
 
-	command := parts[0]
-	args := parts[1:]
+	return s.executeCommand(command, client.OutDir, "pre-command")
+}
 
-	// Create the command
-	cmd := exec.Command(command, args...)
-	cmd.Dir = client.OutDir // Execute in the output directory
-	cmd.Stdout = os.Stdout  // Forward stdout to see command output
-	cmd.Stderr = os.Stderr  // Forward stderr to see errors
+// executePostGenCommands executes the post-generation command for a client
+func (s *Service) executePostGenCommands(client config.Client) error {
+	command := client.GetPostCommand()
+	if len(command) == 0 {
+		return nil // No command to execute
+	}
+
+	return s.executeCommand(command, client.OutDir, "post-command")
+}
+
+// executeCommand executes a single command in Docker Compose array format
+func (s *Service) executeCommand(command []string, workDir, commandLabel string) error {
+	if len(command) == 0 {
+		return nil // Skip empty commands
+	}
+
+	// Create command with first element as executable and rest as arguments
+	cmd := exec.Command(command[0], command[1:]...)
+	cmd.Dir = workDir      // Execute in the specified directory
+	cmd.Stdout = os.Stdout // Forward stdout to see command output
+	cmd.Stderr = os.Stderr // Forward stderr to see errors
+
+	cmdDescription := strings.Join(command, " ")
 
 	// Execute the command
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("%s (%s) failed: %w", commandLabel, cmdDescription, err)
+	}
+
+	return nil
 }

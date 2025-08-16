@@ -5,15 +5,51 @@ import { CoreClient, ClientOption } from "./client";
 import { {{ serviceName .Tag }} } from "./services/{{ fileBase .Tag }}";
 {{- end }}
 
+{{ $grouped := groupByNamespace .IR.Services }}
+{{- $rootServices := index $grouped "" }}
+
+{{- /* Generate namespace classes for non-root services */ -}}
+{{ range $namespace, $services := $grouped }}
+  {{- if ne $namespace "" }}
+class {{ pascal $namespace }}Namespace {
+    {{- range $services }}
+  readonly {{ serviceProp (getServiceName .Tag) }}: {{ serviceName .Tag }};
+    {{- end }}
+
+  constructor(core: CoreClient) {
+    {{- range $services }}
+    this.{{ serviceProp (getServiceName .Tag) }} = new {{ serviceName .Tag }}(core);
+    {{- end }}
+  }
+}
+
+  {{ end }}
+{{- end }}
+
 export class {{ .Client.Name }} {
-  {{- range .IR.Services }}
+  {{- /* Root level services (no namespace) */ -}}
+  {{- range $rootServices }}
   readonly {{ serviceProp .Tag }}: {{ serviceName .Tag }};
+  {{- end }}
+  {{- /* Namespace properties */ -}}
+  {{- range $namespace, $services := $grouped }}
+    {{- if ne $namespace "" }}
+  readonly {{ serviceProp $namespace }}: {{ pascal $namespace }}Namespace;
+    {{- end }}
   {{- end }}
 
   constructor(options?: ClientOption) {
     const core = new CoreClient(options);
-    {{- range .IR.Services }}
+    
+    {{- /* Initialize root services */ -}}
+    {{- range $rootServices }}
     this.{{ serviceProp .Tag }} = new {{ serviceName .Tag }}(core);
+    {{- end }}
+    {{- /* Initialize namespaces */ -}}
+    {{- range $namespace, $services := $grouped }}
+      {{- if ne $namespace "" }}
+    this.{{ serviceProp $namespace }} = new {{ pascal $namespace }}Namespace(core);
+      {{- end }}
     {{- end }}
   }
 }

@@ -22,6 +22,7 @@ type Client struct {
 	Type        string   `yaml:"type"`
 	OutDir      string   `yaml:"outDir"`
 	PackageName string   `yaml:"packageName"`
+	ModuleName  string   `yaml:"moduleName"`
 	Name        string   `yaml:"name"`
 	IncludeTags []string `yaml:"includeTags"`
 	ExcludeTags []string `yaml:"excludeTags"`
@@ -30,9 +31,26 @@ type Client struct {
 	// OperationIDParser is an optional executable script to transform operationId to a method name.
 	// It will be executed as: <parser> <operationId> <method> <path>
 	OperationIDParser string `yaml:"operationIdParser"`
-	// PostGenCommand is an optional command to run after SDK generation completes.
-	// It will be executed in the output directory. Useful for formatting, linting, or cleanup.
-	PostGenCommand string `yaml:"postGenCommand"`
+	// PreCommand is an optional command to run before SDK generation starts.
+	// Uses Docker Compose array format: ["goimports", "-w", "."]
+	// The command will be executed in the output directory.
+	PreCommand []string `yaml:"preCommand"`
+	// PostCommand is an optional command to run after SDK generation completes.
+	// Uses Docker Compose array format: ["goimports", "-w", "."]
+	// The command will be executed in the output directory.
+	PostCommand []string `yaml:"postCommand"`
+	// DefaultBaseURL is the default base URL that will be used if no base URL is provided when creating a client
+	DefaultBaseURL string `yaml:"defaultBaseURL"`
+}
+
+// GetPreCommand returns the pre-generation command to execute.
+func (c *Client) GetPreCommand() []string {
+	return c.PreCommand
+}
+
+// GetPostCommand returns the post-generation command to execute.
+func (c *Client) GetPostCommand() []string {
+	return c.PostCommand
 }
 
 // Load loads configuration from a YAML file

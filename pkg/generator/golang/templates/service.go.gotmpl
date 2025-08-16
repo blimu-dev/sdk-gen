@@ -20,7 +20,7 @@ type {{ serviceName .Service.Tag }} struct {
 {{- $hasBody := hasRequestBody . }}
 {{- $responseType := goType .Response.Schema }}
 
-// {{ $method }} {{ .Method }} {{ .Path }}
+// {{ $method }}WithContext {{ .Method }} {{ .Path }}
 {{- if .Summary }}
 // {{ .Summary }}
 {{- end }}
@@ -28,7 +28,7 @@ type {{ serviceName .Service.Tag }} struct {
 //
 // {{ .Description }}
 {{- end }}
-func (s *{{ serviceName $.Service.Tag }}) {{ methodSignature . }} {
+func (s *{{ serviceName $.Service.Tag }}) {{ methodSignatureWithContext . }} {
 	{{- if $pathParams }}
 	// Build path with parameters
 	path := fmt.Sprintf({{ pathTemplate . }}{{ range $pathParams }}, {{ camel .Name }}{{ end }})
@@ -80,5 +80,35 @@ func (s *{{ serviceName $.Service.Tag }}) {{ methodSignature . }} {
 	}
 	
 	return result, nil
+}
+
+// {{ $method }} {{ .Method }} {{ .Path }}
+{{- if .Summary }}
+// {{ .Summary }}
+{{- end }}
+{{- if .Description }}
+//
+// {{ .Description }}
+{{- end }}
+//
+// This is a convenience method that calls {{ $method }}WithContext with context.Background().
+func (s *{{ serviceName $.Service.Tag }}) {{ methodSignatureNoContext . }} {
+	{{- if and $pathParams $hasQuery $hasBody }}
+	return s.{{ $method }}WithContext(context.Background(), {{ range $pathParams }}{{ camel .Name }}, {{ end }}query, body)
+	{{- else if and $pathParams $hasQuery }}
+	return s.{{ $method }}WithContext(context.Background(), {{ range $pathParams }}{{ camel .Name }}, {{ end }}query)
+	{{- else if and $pathParams $hasBody }}
+	return s.{{ $method }}WithContext(context.Background(), {{ range $pathParams }}{{ camel .Name }}, {{ end }}body)
+	{{- else if $pathParams }}
+	return s.{{ $method }}WithContext(context.Background(){{ range $pathParams }}, {{ camel .Name }}{{ end }})
+	{{- else if and $hasQuery $hasBody }}
+	return s.{{ $method }}WithContext(context.Background(), query, body)
+	{{- else if $hasQuery }}
+	return s.{{ $method }}WithContext(context.Background(), query)
+	{{- else if $hasBody }}
+	return s.{{ $method }}WithContext(context.Background(), body)
+	{{- else }}
+	return s.{{ $method }}WithContext(context.Background())
+	{{- end }}
 }
 {{- end }}

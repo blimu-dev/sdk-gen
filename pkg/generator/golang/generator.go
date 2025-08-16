@@ -46,6 +46,7 @@ func (g *GoGenerator) Generate(client config.Client, in ir.IR) error {
 		"serviceName":     func(tag string) string { return toPascalCase(tag) + "Service" },
 		"serviceField":    func(tag string) string { return toPascalCase(tag) },
 		"methodName":      func(op ir.IROperation) string { return ResolveMethodName(client, op) },
+		"queryTypeName":   func(op ir.IROperation) string { return toPascalCase(op.Tag) + ResolveMethodName(client, op) + "Query" },
 		"goType":          func(x any) string { return schemaToGoType(x) },
 		"goStructTag":     func(name string) string { return fmt.Sprintf("`json:\"%s\"`", name) },
 		"pathTemplate":    func(op ir.IROperation) string { return buildPathTemplate(op) },
@@ -54,11 +55,53 @@ func (g *GoGenerator) Generate(client config.Client, in ir.IR) error {
 		"hasPathParams":   func(op ir.IROperation) bool { return len(op.PathParams) > 0 },
 		"hasQueryParams":  func(op ir.IROperation) bool { return len(op.QueryParams) > 0 },
 		"hasRequestBody":  func(op ir.IROperation) bool { return op.RequestBody != nil },
-		"methodSignature": func(op ir.IROperation) string { return buildMethodSignature(op, ResolveMethodName(client, op)) },
+		"methodSignature": func(op ir.IROperation) string { return buildMethodSignature(client, op, ResolveMethodName(client, op)) },
 		"reMatch":         func(pattern, s string) bool { r := regexp.MustCompile(pattern); return r.MatchString(s) },
 		"packageName":     func() string { return sanitizePackageName(client.PackageName) },
-		"clientName":      func() string { return sanitizePackageName(strings.ToLower(client.Name)) },
-		"hasPrefix":       func(s, prefix string) bool { return strings.HasPrefix(s, prefix) },
+		"moduleName": func() string {
+			if client.ModuleName != "" {
+				return client.ModuleName
+			}
+			return sanitizePackageName(client.PackageName)
+		},
+		"clientName": func() string { return sanitizePackageName(strings.ToLower(client.Name)) },
+		"hasPrefix":  func(s, prefix string) bool { return strings.HasPrefix(s, prefix) },
+		// Namespace helper functions
+		"groupByNamespace": func(services []ir.IRService) map[string][]ir.IRService {
+			namespaces := make(map[string][]ir.IRService)
+			for _, service := range services {
+				parts := strings.Split(service.Tag, ".")
+				if len(parts) == 1 {
+					// Root level service
+					if namespaces[""] == nil {
+						namespaces[""] = []ir.IRService{}
+					}
+					namespaces[""] = append(namespaces[""], service)
+				} else {
+					// Namespaced service
+					namespace := parts[0]
+					if namespaces[namespace] == nil {
+						namespaces[namespace] = []ir.IRService{}
+					}
+					namespaces[namespace] = append(namespaces[namespace], service)
+				}
+			}
+			return namespaces
+		},
+		"getServiceName": func(tag string) string {
+			parts := strings.Split(tag, ".")
+			if len(parts) > 1 {
+				return parts[1] // Return the part after the dot
+			}
+			return tag // Return the whole tag if no dot
+		},
+		// Method signature helpers for dual context pattern
+		"methodSignatureWithContext": func(op ir.IROperation) string {
+			return buildMethodSignature(client, op, ResolveMethodName(client, op)+"WithContext")
+		},
+		"methodSignatureNoContext": func(op ir.IROperation) string {
+			return buildMethodSignatureNoContext(client, op, ResolveMethodName(client, op))
+		},
 	}
 
 	// Merge sprig functions

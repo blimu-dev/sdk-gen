@@ -1,6 +1,6 @@
-module {{ .Client.PackageName }}
+module {{ if .Client.ModuleName }}{{ .Client.ModuleName }}{{ else }}{{ .Client.PackageName }}{{ end }}
 
-go 1.21
+go 1.25
 
 // Generated Go SDK for {{ .Client.Name }}
 // This module provides a type-safe client for the API

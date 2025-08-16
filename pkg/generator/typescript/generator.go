@@ -78,6 +78,35 @@ func (g *TypeScriptGenerator) Generate(client config.Client, in ir.IR) error {
 		},
 		"stripSchemaNs": func(s string) string { return strings.ReplaceAll(s, "Schema.", "") },
 		"reMatch":       func(pattern, s string) bool { r := regexp.MustCompile(pattern); return r.MatchString(s) },
+		// Namespace helper functions
+		"groupByNamespace": func(services []ir.IRService) map[string][]ir.IRService {
+			namespaces := make(map[string][]ir.IRService)
+			for _, service := range services {
+				parts := strings.Split(service.Tag, ".")
+				if len(parts) == 1 {
+					// Root level service
+					if namespaces[""] == nil {
+						namespaces[""] = []ir.IRService{}
+					}
+					namespaces[""] = append(namespaces[""], service)
+				} else {
+					// Namespaced service
+					namespace := parts[0]
+					if namespaces[namespace] == nil {
+						namespaces[namespace] = []ir.IRService{}
+					}
+					namespaces[namespace] = append(namespaces[namespace], service)
+				}
+			}
+			return namespaces
+		},
+		"getServiceName": func(tag string) string {
+			parts := strings.Split(tag, ".")
+			if len(parts) > 1 {
+				return parts[1] // Return the part after the dot
+			}
+			return tag // Return the whole tag if no dot
+		},
 	}
 
 	// Merge sprig functions
@@ -106,6 +135,10 @@ func (g *TypeScriptGenerator) Generate(client config.Client, in ir.IR) error {
 	}
 	// package.json
 	if err := renderFile("package.json.gotmpl", filepath.Join(client.OutDir, "package.json"), funcMap, map[string]any{"Client": client}); err != nil {
+		return err
+	}
+	// .prettierrc.json
+	if err := renderFile(".prettierrc.json.gotmpl", filepath.Join(client.OutDir, ".prettierrc.json"), funcMap, map[string]any{"Client": client}); err != nil {
 		return err
 	}
 	// tsconfig.json

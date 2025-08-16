@@ -143,12 +143,24 @@ clients:
     excludeTags: ["internal"]
     includeQueryKeys: true
     operationIdParser: "./scripts/parse-operation-id.sh"
+    preCommand:
+      - "rm -rf src/ && mkdir -p src/"
+      - "test -f package.json || npm init -y"
+    postCommand:
+      - "npx prettier --write . && echo 'Formatted code'"
+      - "npm run type-check || echo 'Type check failed, continuing...'"
+      - "npm audit fix --audit-level moderate"
 
-  - type: "typescript"
-    outDir: "./admin-sdk"
-    packageName: "my-admin-client"
-    name: "MyAdminClient"
-    includeTags: ["admin"]
+  - type: "go"
+    outDir: "./go-sdk"
+    packageName: "my-go-client"
+    name: "MyGoClient"
+    preCommand:
+      - "rm -rf *.go && echo 'Cleaned old Go files'"
+      - "test -f go.mod || go mod init my-go-client"
+    postCommand:
+      - "goimports -w . && go mod tidy"
+      - "go test ./... || echo 'Tests failed, but SDK generated'"
 ```
 
 ### Configuration Options
@@ -164,6 +176,38 @@ clients:
   - **`excludeTags`**: Array of regex patterns for tags to exclude
   - **`includeQueryKeys`**: Generate query key helpers for React Query (TypeScript only)
   - **`operationIdParser`**: Optional script to transform operation IDs
+  - **`preCommand`**: Single command to run before SDK generation (Docker Compose array format)
+  - **`postCommand`**: Single command to run after SDK generation (Docker Compose array format)
+
+### Command Format
+
+Commands use Docker Compose array format for safe and explicit argument parsing:
+
+```yaml
+# Simple command
+postCommand: ["goimports", "-w", "."]
+
+# Command with multiple arguments
+postCommand: ["npx", "prettier", "--write", "."]
+
+# Complex shell operations (use bash -c)
+postCommand: ["bash", "-c", "npm run lint && npm run test || echo 'Tests failed'"]
+```
+
+**Benefits:**
+
+- **Safe argument parsing** - No shell escaping issues
+- **Explicit** - Clear separation of command and arguments
+- **Cross-platform** - Works consistently across operating systems
+- **No injection risks** - Arguments are properly escaped
+
+**For complex shell operations**, wrap them in `bash -c`:
+
+```yaml
+preCommand: ["bash", "-c", "rm -rf dist/ && mkdir -p dist/"]
+postCommand:
+  ["bash", "-c", "go mod tidy && go test ./... || echo 'Tests failed'"]
+```
 
 ## Generated TypeScript SDK
 

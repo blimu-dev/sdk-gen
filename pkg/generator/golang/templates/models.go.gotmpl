@@ -33,15 +33,15 @@ type {{ pascal .Name }} struct {
 {{- range .Operations }}
 {{- if .QueryParams }}
 
-// {{ methodName . }}Query represents query parameters for {{ methodName . }}
-type {{ methodName . }}Query struct {
+// {{ queryTypeName . }} represents query parameters for {{ .Tag }}.{{ methodName . }}
+type {{ queryTypeName . }} struct {
 	{{- range .QueryParams }}
 	{{ pascal .Name }} {{ if not .Required }}*{{ end }}{{ goType .Schema }} {{ goStructTag .Name }}{{ if .Description }} // {{ .Description }}{{ end }}
 	{{- end }}
 }
 
 // ToValues converts the query struct to url.Values
-func (q *{{ methodName . }}Query) ToValues() url.Values {
+func (q *{{ queryTypeName . }}) ToValues() url.Values {
 	if q == nil {
 		return nil
 	}

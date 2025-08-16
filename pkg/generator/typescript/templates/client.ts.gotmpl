@@ -18,7 +18,12 @@ export type ClientOption = {
 };
 
 export class CoreClient {
-  constructor(private cfg: ClientOption = {}) {}
+  constructor(private cfg: ClientOption = {}) {
+    // Set default base URL if not provided
+    if (!this.cfg.baseURL) {
+      this.cfg.baseURL = "{{ .Client.DefaultBaseURL }}";
+    }
+  }
   async request(
     init: RequestInit & {
       path: string;
