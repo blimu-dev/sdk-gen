@@ -3,11 +3,11 @@ package typescript
 import (
 	"fmt"
 	"os/exec"
-	"regexp"
 	"strings"
 
 	"github.com/blimu-dev/sdk-gen/pkg/config"
 	"github.com/blimu-dev/sdk-gen/pkg/ir"
+	"github.com/blimu-dev/sdk-gen/pkg/utils"
 )
 
 // schemaToTSType converts an IR schema to TypeScript type string
@@ -180,87 +180,11 @@ func defaultParseOperationID(opID string) string {
 	return opID
 }
 
-var nonAlnum = regexp.MustCompile(`[^A-Za-z0-9]+`)
-var camelSplit = regexp.MustCompile(`([a-z0-9])([A-Z])`)
-
-// splitWords splits a string into words, handling camelCase, PascalCase, snake_case, and kebab-case
-func splitWords(s string) []string {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return nil
-	}
-
-	// First, handle camelCase/PascalCase by inserting separators before capital letters
-	s = camelSplit.ReplaceAllString(s, "$1 $2")
-
-	// Then split on non-alphanumeric characters and spaces
-	parts := regexp.MustCompile(`[^A-Za-z0-9]+`).Split(s, -1)
-
-	// Filter out empty parts
-	result := make([]string, 0, len(parts))
-	for _, p := range parts {
-		if p != "" {
-			result = append(result, p)
-		}
-	}
-	return result
-}
-
-// toPascalCase converts a string to PascalCase
-func toPascalCase(s string) string {
-	parts := splitWords(s)
-	if len(parts) == 0 {
-		return ""
-	}
-
-	b := strings.Builder{}
-	for _, p := range parts {
-		if p == "" {
-			continue
-		}
-		// Capitalize first letter, keep rest of the word as lowercase
-		b.WriteString(strings.ToUpper(p[:1]))
-		if len(p) > 1 {
-			b.WriteString(strings.ToLower(p[1:]))
-		}
-	}
-	return b.String()
-}
-
-// toCamelCase converts a string to camelCase
-func toCamelCase(s string) string {
-	p := toPascalCase(s)
-	if p == "" {
-		return ""
-	}
-	return strings.ToLower(p[:1]) + p[1:]
-}
-
-// toSnakeCase converts a string to snake_case
-func toSnakeCase(s string) string {
-	parts := splitWords(s)
-	if len(parts) == 0 {
-		return ""
-	}
-
-	for i := range parts {
-		parts[i] = strings.ToLower(parts[i])
-	}
-	return strings.Join(parts, "_")
-}
-
-// toKebabCase converts a string to kebab-case
-func toKebabCase(s string) string {
-	parts := splitWords(s)
-	if len(parts) == 0 {
-		return ""
-	}
-
-	for i := range parts {
-		parts[i] = strings.ToLower(parts[i])
-	}
-	return strings.Join(parts, "-")
-}
+// Alias functions to use centralized utilities
+var toPascalCase = utils.ToPascalCase
+var toCamelCase = utils.ToCamelCase
+var toSnakeCase = utils.ToSnakeCase
+var toKebabCase = utils.ToKebabCase
 
 // buildPathTemplate converts OpenAPI path to TypeScript template literal
 func buildPathTemplate(op ir.IROperation) string {

@@ -1,0 +1,61 @@
+"""{{ .Client.Name }} API Models"""
+
+from typing import Any, Dict, List, Optional, Union
+from typing_extensions import Literal
+from pydantic import BaseModel, Field
+from datetime import datetime
+from enum import Enum
+
+{{- if .IR.ModelDefs }}
+
+{{- range .IR.ModelDefs }}
+{{- if eq .Schema.Kind "enum" }}
+{{- if isStringEnum .Schema }}
+
+class {{ .Name }}(str, Enum):
+    """{{ if .Annotations.Title }}{{ .Annotations.Title }}{{ else }}{{ .Name }} enum{{ end }}"""
+    {{- if .Annotations.Description }}
+    # {{ .Annotations.Description }}
+    {{- end }}
+    {{- range $val := enumValues .Schema }}
+    {{ snake $val | upper }} = "{{ $val }}"
+    {{- end }}
+{{- else }}
+
+# {{ .Name }} enum (non-string enums are represented as Literal types)
+{{ .Name }} = Literal[{{ range $i, $val := enumValues .Schema }}{{ if $i }}, {{ end }}"{{ $val }}"{{ end }}]
+{{- end }}
+{{- else }}
+
+class {{ .Name }}(BaseModel):
+    """{{ if .Annotations.Title }}{{ .Annotations.Title }}{{ else }}{{ .Name }} model{{ end }}"""
+    {{- if .Annotations.Description }}
+    # {{ .Annotations.Description }}
+    {{- end }}
+    
+    {{- range .Schema.Properties }}
+    {{ snake .Name }}: {{ pyFieldType . }}{{ if not .Required }} = None{{ end }}
+    {{- if .Annotations.Description }}
+    {{ formatPythonComment .Annotations.Description }}
+    {{- end }}
+    {{- end }}
+    
+    {{- if .Schema.AdditionalProperties }}
+    # Additional properties are allowed
+    model_config = {"extra": "allow"}
+    {{- end }}
+{{- end }}
+{{- end }}
+
+{{- else }}
+
+# No models defined in the OpenAPI specification
+
+{{- end }}
+
+# Common response models for operations that don't have explicit response schemas
+class ErrorResponse(BaseModel):
+    """Standard error response"""
+    error: str
+    message: Optional[str] = None
+    details: Optional[Dict[str, Any]] = None

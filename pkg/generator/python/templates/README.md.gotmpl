@@ -1,0 +1,238 @@
+# {{ .Client.Name }} Python SDK
+
+A Python client library for the {{ .Client.Name }} API.
+
+## Installation
+
+```bash
+pip install {{ kebab .Client.PackageName }}
+```
+
+## Quick Start
+
+```python
+from {{ .Client.PackageName }} import {{ .Client.Name }}, ClientConfig
+
+# Initialize the client
+config = ClientConfig(
+    base_url="{{ .Client.DefaultBaseURL }}",
+    # Add authentication if needed
+    # api_key="your-api-key",
+)
+
+# Use as context manager (recommended)
+with {{ .Client.Name }}(config) as client:
+    # Example API calls
+    {{- if .IR.Services }}
+    {{- $firstService := index .IR.Services 0 }}
+    {{- if $firstService.Operations }}
+    {{- $firstOp := index $firstService.Operations 0 }}
+    result = client.{{ serviceVar $firstService.Tag }}.{{ methodName $firstOp }}(
+        # Add required parameters here
+    )
+    print(result)
+    {{- end }}
+    {{- end }}
+
+# Or manage the client lifecycle manually
+client = {{ .Client.Name }}(config)
+try:
+    # Use the client
+    pass
+finally:
+    client.close()
+```
+
+## Authentication
+
+{{- $schemes := .IR.SecuritySchemes }}
+{{- if $schemes }}
+
+The {{ .Client.Name }} API supports the following authentication methods:
+
+{{- range $s := $schemes }}
+{{- if eq $s.Type "http" }}
+{{- if eq $s.Scheme "bearer" }}
+
+### Bearer Token
+
+```python
+config = ClientConfig(
+    {{ snake $s.Key }}="your-bearer-token"
+)
+```
+{{- else if eq $s.Scheme "basic" }}
+
+### Basic Authentication
+
+```python
+config = ClientConfig(
+    {{ snake $s.Key }}={
+        "username": "your-username",
+        "password": "your-password"
+    }
+)
+```
+{{- end }}
+{{- else if eq $s.Type "apiKey" }}
+
+### API Key Authentication
+
+```python
+config = ClientConfig(
+    {{ snake $s.Key }}="your-api-key"
+)
+```
+{{- end }}
+{{- end }}
+{{- else }}
+
+Please refer to the API documentation for authentication details.
+{{- end }}
+
+## API Reference
+
+{{- range .IR.Services }}
+
+### {{ serviceName .Tag }}
+
+The `{{ serviceVar .Tag }}` service provides access to {{ .Tag }} operations.
+
+{{- range .Operations }}
+
+#### `{{ methodName . }}()`
+
+{{ httpMethodUpper .Method }} `{{ .Path }}`
+
+{{- if .Summary }}
+{{ .Summary }}
+{{- end }}
+
+{{- if .Description }}
+
+{{ .Description }}
+{{- end }}
+
+**Parameters:**
+{{- range pathParamsInOrder . }}
+- `{{ snake .Name }}` ({{ pyType .Schema }}){{ if .Required }} - **Required**{{ end }}{{ if .Description }} - {{ .Description }}{{ end }}
+{{- end }}
+{{- range .QueryParams }}
+- `{{ snake .Name }}` ({{ pyType .Schema }}){{ if .Required }} - **Required**{{ else }} - *Optional*{{ end }}{{ if .Description }} - {{ .Description }}{{ end }}
+{{- end }}
+{{- if .RequestBody }}
+- `body` ({{ pyType .RequestBody.Schema }}){{ if .RequestBody.Required }} - **Required**{{ else }} - *Optional*{{ end }} - Request body
+{{- end }}
+
+**Returns:** `{{ pyType .Response.Schema }}`{{ if .Response.Description }} - {{ .Response.Description }}{{ end }}
+
+```python
+{{- $methodName := methodName . }}
+result = client.{{ serviceVar .Tag }}.{{ $methodName }}(
+    {{- range pathParamsInOrder . }}
+    {{ snake .Name }}="example-value",
+    {{- end }}
+    {{- range .QueryParams }}
+    {{- if .Required }}
+    {{ snake .Name }}="example-value",
+    {{- end }}
+    {{- end }}
+    {{- if and .RequestBody .RequestBody.Required }}
+    body={},
+    {{- end }}
+)
+```
+{{- end }}
+{{- end }}
+
+## Error Handling
+
+The client raises `httpx.HTTPStatusError` for HTTP errors. You can catch and handle these exceptions:
+
+```python
+import httpx
+from {{ .Client.PackageName }} import {{ .Client.Name }}, ClientConfig
+
+client = {{ .Client.Name }}(ClientConfig())
+
+try:
+    {{- if .IR.Services }}
+    {{- $firstService := index .IR.Services 0 }}
+    {{- if $firstService.Operations }}
+    {{- $firstOp := index $firstService.Operations 0 }}
+    result = client.{{ serviceVar $firstService.Tag }}.{{ methodName $firstOp }}()
+    {{- end }}
+    {{- end }}
+except httpx.HTTPStatusError as e:
+    print(f"HTTP error occurred: {e.response.status_code}")
+    print(f"Response: {e.response.text}")
+except httpx.RequestError as e:
+    print(f"Request error occurred: {e}")
+```
+
+## Configuration
+
+### ClientConfig Options
+
+- `base_url` (str): The base URL for the API
+- `headers` (Dict[str, str]): Additional headers to include in requests
+- `timeout` (float): Request timeout in seconds (default: 30.0)
+{{- range $s := $schemes }}
+{{- if eq $s.Type "http" }}
+{{- if eq $s.Scheme "bearer" }}
+- `{{ snake $s.Key }}` (str): Bearer token for authentication
+{{- else if eq $s.Scheme "basic" }}
+- `{{ snake $s.Key }}` (Dict[str, str]): Basic auth credentials with 'username' and 'password' keys
+{{- end }}
+{{- else if eq $s.Type "apiKey" }}
+- `{{ snake $s.Key }}` (str): API key for authentication
+{{- end }}
+{{- end }}
+
+### Custom HTTP Client
+
+The SDK uses `httpx` internally. You can pass additional arguments to customize the underlying HTTP client:
+
+```python
+config = ClientConfig(
+    base_url="{{ .Client.DefaultBaseURL }}",
+    timeout=60.0,
+    # Additional httpx.Client arguments
+    verify=False,  # Disable SSL verification
+    proxies="http://proxy.example.com:8080",
+)
+```
+
+## Development
+
+To set up the development environment:
+
+```bash
+# Clone the repository
+git clone https://github.com/example/{{ kebab .Client.PackageName }}.git
+cd {{ kebab .Client.PackageName }}
+
+# Install development dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Format code
+black .
+isort .
+
+# Type checking
+mypy {{ .Client.PackageName }}
+
+# Linting
+ruff {{ .Client.PackageName }}
+```
+
+## License
+
+This project is licensed under the MIT License.
+
+## Support
+
+For support and questions, please refer to the [{{ .Client.Name }} documentation]({{ .Client.DefaultBaseURL }}/docs) or open an issue on GitHub.

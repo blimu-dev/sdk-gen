@@ -22,11 +22,11 @@ type {{ serviceName .Service.Tag }} struct {
 
 // {{ $method }}WithContext {{ .Method }} {{ .Path }}
 {{- if .Summary }}
-// {{ .Summary }}
+{{ formatGoComment .Summary }}
 {{- end }}
 {{- if .Description }}
 //
-// {{ .Description }}
+{{ formatGoComment .Description }}
 {{- end }}
 func (s *{{ serviceName $.Service.Tag }}) {{ methodSignatureWithContext . }} {
 	{{- if $pathParams }}
@@ -84,11 +84,11 @@ func (s *{{ serviceName $.Service.Tag }}) {{ methodSignatureWithContext . }} {
 
 // {{ $method }} {{ .Method }} {{ .Path }}
 {{- if .Summary }}
-// {{ .Summary }}
+{{ formatGoComment .Summary }}
 {{- end }}
 {{- if .Description }}
 //
-// {{ .Description }}
+{{ formatGoComment .Description }}
 {{- end }}
 //
 // This is a convenience method that calls {{ $method }}WithContext with context.Background().

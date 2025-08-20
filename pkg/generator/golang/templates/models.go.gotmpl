@@ -11,10 +11,10 @@ import (
 
 {{- range .IR.ModelDefs }}
 
-// {{ pascal .Name }} {{ if .Annotations.Description }}{{ .Annotations.Description }}{{ end }}
+{{ if .Annotations.Description }}{{ formatGoComment (printf "%s %s" (pascal .Name) .Annotations.Description) }}{{ else }}// {{ pascal .Name }}{{ end }}
 type {{ pascal .Name }} struct {
 	{{- range .Schema.Properties }}
-	{{ pascal .Name }} {{ goType .Type }} {{ goStructTag .Name }}{{ if .Annotations.Description }} // {{ .Annotations.Description }}{{ end }}
+	{{ pascal .Name }} {{ goType .Type }} {{ goStructTag .Name }}{{ if .Annotations.Description }} // {{ .Annotations.Description | replace "\n" " " }}{{ end }}
 	{{- end }}
 }
 {{- end }}
@@ -36,7 +36,7 @@ type {{ pascal .Name }} struct {
 // {{ queryTypeName . }} represents query parameters for {{ .Tag }}.{{ methodName . }}
 type {{ queryTypeName . }} struct {
 	{{- range .QueryParams }}
-	{{ pascal .Name }} {{ if not .Required }}*{{ end }}{{ goType .Schema }} {{ goStructTag .Name }}{{ if .Description }} // {{ .Description }}{{ end }}
+	{{ pascal .Name }} {{ if not .Required }}*{{ end }}{{ goType .Schema }} {{ goStructTag .Name }}{{ if .Description }} // {{ .Description | replace "\n" " " }}{{ end }}
 	{{- end }}
 }
 

@@ -1,0 +1,11 @@
+"""{{ .Client.Name }} API Services"""
+
+{{- range .IR.Services }}
+from .{{ fileBase .Tag }} import {{ serviceName .Tag }}
+{{- end }}
+
+__all__ = [
+    {{- range .IR.Services }}
+    "{{ serviceName .Tag }}",
+    {{- end }}
+]

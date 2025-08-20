@@ -1,0 +1,93 @@
+"""{{ serviceName .Service.Tag }} for {{ .Client.Name }} API"""
+
+from typing import Any, Dict, List, Optional, Union
+from ..client import CoreClient
+from .. import models
+
+class {{ serviceName .Service.Tag }}:
+    """{{ serviceName .Service.Tag }} provides methods for {{ .Service.Tag }} operations."""
+    
+    def __init__(self, client: CoreClient):
+        self._client = client
+    
+    {{- range .Service.Operations }}
+    
+    def {{ methodName . }}(
+        self,
+        {{- $params := methodSignature . }}
+        {{- range $i, $param := $params }}
+        {{ $param }}{{ if lt $i (sub (len $params) 1) }},{{ end }}
+        {{- end }}
+    ) -> {{ pyTypeForService .Response.Schema }}:
+        """{{ httpMethodUpper .Method }} {{ .Path }}
+        {{- if .Summary }}
+        
+        {{ docstring .Summary }}
+        {{- else if .Response.Description }}
+        
+        Returns:
+        {{ docstring .Response.Description }}
+        {{- end }}
+        {{- if .Description }}
+        
+        Description:
+        {{ docstring .Description }}
+        {{- end }}
+        
+        Args:
+        {{- range pathParamsInOrder . }}
+            {{ snake .Name }} ({{ pyTypeForService .Schema }}): {{ if .Description }}{{ .Description }}{{ else }}Path parameter{{ end }}
+        {{- end }}
+        {{- range .QueryParams }}
+            {{ snake .Name }} ({{ pyTypeForService .Schema }}{{ if not .Required }}, optional{{ end }}): {{ if .Description }}{{ .Description }}{{ else }}Query parameter{{ end }}
+        {{- end }}
+        {{- if .RequestBody }}
+            body ({{ pyTypeForService .RequestBody.Schema }}{{ if not .RequestBody.Required }}, optional{{ end }}): Request body
+        {{- end }}
+        
+        Returns:
+            {{ pyTypeForService .Response.Schema }}: {{ if .Response.Description }}{{ .Response.Description }}{{ else }}API response{{ end }}
+        """
+        
+        # Build query parameters
+        {{- if hasQueryParams . }}
+        params = {}
+        {{- range .QueryParams }}
+        if {{ snake .Name }} is not None:
+            params["{{ .Name }}"] = {{ snake .Name }}
+        {{- end }}
+        {{- else }}
+        params = None
+        {{- end }}
+        
+        # Build request data
+        {{- if hasRequestBody . }}
+        json_data = None
+        if body is not None:
+            if hasattr(body, 'model_dump'):
+                json_data = body.model_dump()
+            elif hasattr(body, 'dict'):
+                json_data = body.dict()
+            else:
+                json_data = body
+        {{- else }}
+        json_data = None
+        {{- end }}
+        
+        # Build path
+        path = {{ pathTemplate . }}
+        
+        # Make request
+        response = self._client.request(
+            method="{{ httpMethodUpper .Method }}",
+            path=path,
+            {{- if hasQueryParams . }}
+            params=params,
+            {{- end }}
+            {{- if hasRequestBody . }}
+            json=json_data,
+            {{- end }}
+        )
+        
+        return response
+    {{- end }}

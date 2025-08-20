@@ -409,15 +409,21 @@ func buildStructuredModels(doc *openapi3.T) []ir.IRModelDef {
 	}
 	sort.Strings(names)
 	seen := map[string]struct{}{}
+
+	// Pre-populate seen with component names to prevent inline duplicates
+	for _, name := range names {
+		seen[name] = struct{}{}
+	}
+
 	for _, name := range names {
 		sr := doc.Components.Schemas[name]
-		schema := schemaRefToIRWithNaming(doc, sr, name, "", false, &out, seen)
+		// For component schemas, use schemaRefToIR to get the actual schema without creating inline models
+		schema := schemaRefToIR(doc, sr)
 		out = append(out, ir.IRModelDef{
 			Name:        name,
 			Schema:      schema,
 			Annotations: extractAnnotations(sr),
 		})
-		seen[name] = struct{}{}
 	}
 	return out
 }

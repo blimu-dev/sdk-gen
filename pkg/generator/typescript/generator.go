@@ -78,6 +78,10 @@ func (g *TypeScriptGenerator) Generate(client config.Client, in ir.IR) error {
 		},
 		"stripSchemaNs": func(s string) string { return strings.ReplaceAll(s, "Schema.", "") },
 		"reMatch":       func(pattern, s string) bool { r := regexp.MustCompile(pattern); return r.MatchString(s) },
+		"dict":          func() map[string]interface{} { return make(map[string]interface{}) },
+		"hasKey":        func(dict map[string]interface{}, key string) bool { _, exists := dict[key]; return exists },
+		"set":           func(dict map[string]interface{}, key string, value interface{}) string { dict[key] = value; return "" },
+		"quotePropName": quoteTSPropertyName,
 		// Namespace helper functions
 		"groupByNamespace": func(services []ir.IRService) map[string][]ir.IRService {
 			namespaces := make(map[string][]ir.IRService)
@@ -130,7 +134,9 @@ func (g *TypeScriptGenerator) Generate(client config.Client, in ir.IR) error {
 		}
 	}
 	// schemas (always render; may hold operation query interfaces even without models)
-	if err := renderFile("schema.ts.gotmpl", filepath.Join(srcDir, "schema.ts"), funcMap, map[string]any{"IR": in}); err != nil {
+	// Deduplicate model definitions to prevent duplicate enum/type generation
+	deduplicatedIR := deduplicateModelDefs(in)
+	if err := renderFile("schema.ts.gotmpl", filepath.Join(srcDir, "schema.ts"), funcMap, map[string]any{"IR": deduplicatedIR}); err != nil {
 		return err
 	}
 	// package.json
@@ -175,4 +181,56 @@ func renderFile(templateName, targetPath string, funcMap template.FuncMap, data 
 	}
 
 	return nil
+}
+
+// deduplicateModelDefs removes duplicate model definitions, keeping the first occurrence
+// Prioritizes enum definitions over ref definitions
+func deduplicateModelDefs(in ir.IR) ir.IR {
+	seen := make(map[string]bool)
+	var deduplicatedModelDefs []ir.IRModelDef
+
+	// First pass: add all enum definitions
+	for _, modelDef := range in.ModelDefs {
+		if modelDef.Schema.Kind == ir.IRKindEnum && !seen[modelDef.Name] {
+			deduplicatedModelDefs = append(deduplicatedModelDefs, modelDef)
+			seen[modelDef.Name] = true
+		}
+	}
+
+	// Second pass: add non-enum definitions that aren't duplicates
+	for _, modelDef := range in.ModelDefs {
+		if modelDef.Schema.Kind != ir.IRKindEnum && !seen[modelDef.Name] {
+			deduplicatedModelDefs = append(deduplicatedModelDefs, modelDef)
+			seen[modelDef.Name] = true
+		}
+	}
+
+	return ir.IR{
+		Services:        in.Services,
+		Models:          in.Models,
+		SecuritySchemes: in.SecuritySchemes,
+		ModelDefs:       deduplicatedModelDefs,
+	}
+}
+
+// quoteTSPropertyName quotes TypeScript property names that contain special characters
+func quoteTSPropertyName(name string) string {
+	// Check if the name contains characters that require quoting
+	needsQuoting := false
+	for _, char := range name {
+		if !((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || char == '_' || char == '$') {
+			needsQuoting = true
+			break
+		}
+	}
+
+	// Also quote if the name starts with a number
+	if len(name) > 0 && name[0] >= '0' && name[0] <= '9' {
+		needsQuoting = true
+	}
+
+	if needsQuoting {
+		return `"` + name + `"`
+	}
+	return name
 }

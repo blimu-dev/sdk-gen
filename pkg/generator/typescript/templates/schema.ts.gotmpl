@@ -3,8 +3,11 @@
 export type Enum<T> = T[keyof T];
 
 {{- /* Enums: const objects + union types */ -}}
+{{- $enumsSeen := dict }}
 {{- range .IR.ModelDefs }}
   {{- if eq .Schema.Kind "enum" }}
+    {{- if not (hasKey $enumsSeen .Name) }}
+      {{- $_ := set $enumsSeen .Name true }}
 export const {{ .Name }} = {
   {{- range $i, $v := .Schema.EnumValues }}
   "{{ $v }}": {{ if or (eq $v "true") (eq $v "false") }}{{ $v }}{{ else if (reMatch "^-?[0-9]+(\\.[0-9]+)?$" $v) }}{{ $v }}{{ else }}"{{ $v }}"{{ end }},
@@ -13,6 +16,7 @@ export const {{ .Name }} = {
 
 export type {{ .Name }} = Enum<typeof {{ .Name }}>;
 
+    {{- end }}
   {{ end -}}
 {{- end }}
 
@@ -29,7 +33,7 @@ export interface {{ .Name }} {
   {{- if .Annotations.Description }}
   /** {{ .Annotations.Description | replace "*/" "*\\/" }} */
   {{- end }}
-  {{ .Name }}{{ if not .Required }}?{{ end }}: {{ tsType .Type | printf "%s" | stripSchemaNs }};
+  {{ quotePropName .Name }}{{ if not .Required }}?{{ end }}: {{ tsType .Type | printf "%s" | stripSchemaNs }};
   {{- end }}
 }
 
@@ -63,7 +67,7 @@ export interface {{ pascal $tag }}{{ pascal (methodName .) }}Query {
   {{- if .Description }}
   /** {{ .Description | replace "*/" "*\\/" }} */
   {{- end }}
-  {{ .Name }}{{ if not .Required }}?{{ end }}: {{ tsType .Schema | printf "%s" | stripSchemaNs }};
+  {{ quotePropName .Name }}{{ if not .Required }}?{{ end }}: {{ tsType .Schema | printf "%s" | stripSchemaNs }};
   {{- end }}
 }
 

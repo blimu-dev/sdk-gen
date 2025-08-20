@@ -7,6 +7,7 @@ import (
 
 	"github.com/blimu-dev/sdk-gen/pkg/config"
 	"github.com/blimu-dev/sdk-gen/pkg/ir"
+	"github.com/blimu-dev/sdk-gen/pkg/utils"
 )
 
 // schemaToGoType converts an IR schema to Go type string
@@ -85,115 +86,32 @@ func schemaToGoTypeImpl(s ir.IRSchema) string {
 	return t
 }
 
-var nonAlnum = regexp.MustCompile(`[^A-Za-z0-9]+`)
+// Alias functions to use centralized utilities (advanced versions for better camelCase handling)
+var toPascalCase = utils.ToPascalCaseAdvanced
+var toCamelCase = utils.ToCamelCaseAdvanced
+var toSnakeCase = utils.ToSnakeCaseAdvanced
+var toKebabCase = utils.ToKebabCaseAdvanced
 
-// toPascalCase converts a string to PascalCase
-func toPascalCase(s string) string {
-	s = strings.TrimSpace(s)
+// formatGoComment formats a string as a proper Go comment, handling multiline descriptions
+func formatGoComment(s string) string {
 	if s == "" {
 		return ""
 	}
 
-	// First split by non-alphanumeric characters
-	parts := nonAlnum.Split(s, -1)
-	var allParts []string
+	// Split into lines and prefix each with //
+	lines := strings.Split(s, "\n")
+	var result []string
 
-	for _, part := range parts {
-		if part == "" {
-			continue
-		}
-		// Further split camelCase/PascalCase words
-		subParts := splitCamelCase(part)
-		allParts = append(allParts, subParts...)
-	}
-
-	b := strings.Builder{}
-	for _, p := range allParts {
-		if p == "" {
-			continue
-		}
-		b.WriteString(strings.ToUpper(p[:1]))
-		if len(p) > 1 {
-			b.WriteString(strings.ToLower(p[1:]))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			result = append(result, "//")
+		} else {
+			result = append(result, "// "+line)
 		}
 	}
-	return b.String()
-}
 
-// splitCamelCase splits a camelCase or PascalCase string into words
-func splitCamelCase(s string) []string {
-	if s == "" {
-		return nil
-	}
-
-	var parts []string
-	var current strings.Builder
-
-	runes := []rune(s)
-	for i, r := range runes {
-		// Check if this is the start of a new word
-		isNewWord := false
-		if i > 0 && isUppercase(r) {
-			// Current char is uppercase
-			if !isUppercase(runes[i-1]) {
-				// Previous char was lowercase, so this starts a new word
-				isNewWord = true
-			} else if i < len(runes)-1 && !isUppercase(runes[i+1]) {
-				// Previous char was uppercase, but next char is lowercase
-				// This handles cases like "XMLHttp" -> "XML", "Http"
-				isNewWord = true
-			}
-		}
-
-		if isNewWord && current.Len() > 0 {
-			parts = append(parts, current.String())
-			current.Reset()
-		}
-
-		current.WriteRune(r)
-	}
-
-	if current.Len() > 0 {
-		parts = append(parts, current.String())
-	}
-
-	return parts
-}
-
-// isUppercase checks if a rune is uppercase
-func isUppercase(r rune) bool {
-	return r >= 'A' && r <= 'Z'
-}
-
-// toCamelCase converts a string to camelCase
-func toCamelCase(s string) string {
-	p := toPascalCase(s)
-	if p == "" {
-		return ""
-	}
-	return strings.ToLower(p[:1]) + p[1:]
-}
-
-// toSnakeCase converts a string to snake_case
-func toSnakeCase(s string) string {
-	s = strings.TrimSpace(s)
-	s = nonAlnum.ReplaceAllString(s, " ")
-	fields := strings.Fields(s)
-	for i := range fields {
-		fields[i] = strings.ToLower(fields[i])
-	}
-	return strings.Join(fields, "_")
-}
-
-// toKebabCase converts a string to kebab-case
-func toKebabCase(s string) string {
-	s = strings.TrimSpace(s)
-	s = nonAlnum.ReplaceAllString(s, " ")
-	fields := strings.Fields(s)
-	for i := range fields {
-		fields[i] = strings.ToLower(fields[i])
-	}
-	return strings.Join(fields, "-")
+	return strings.Join(result, "\n")
 }
 
 // ResolveMethodName chooses final method name using optional parser, then operationId, then heuristic

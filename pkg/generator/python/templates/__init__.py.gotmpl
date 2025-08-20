@@ -1,0 +1,68 @@
+"""{{ .Client.Name }} Python SDK"""
+
+from .client import CoreClient, ClientConfig
+from . import models
+{{- range .IR.Services }}
+from .services.{{ fileBase .Tag }} import {{ serviceName .Tag }}
+{{- end }}
+
+__version__ = "0.1.0"
+__all__ = [
+    "{{ .Client.Name }}",
+    "ClientConfig",
+    "CoreClient",
+    "models",
+    {{- range .IR.Services }}
+    "{{ serviceName .Tag }}",
+    {{- end }}
+]
+
+
+class {{ .Client.Name }}:
+    """{{ .Client.Name }} SDK Client
+    
+    This is the main client for the {{ .Client.Name }} API. It provides access to all
+    service endpoints through dedicated service classes.
+    
+    Example:
+        >>> from {{ .Client.PackageName }} import {{ .Client.Name }}, ClientConfig
+        >>> config = ClientConfig(base_url="https://api.example.com")
+        >>> client = {{ .Client.Name }}(config)
+        >>> # Use the client...
+        >>> client.close()
+        
+        # Or use as context manager:
+        >>> with {{ .Client.Name }}(config) as client:
+        ...     # Use the client...
+    """
+    
+    def __init__(self, config: ClientConfig = None):
+        """Initialize the {{ .Client.Name }} client.
+        
+        Args:
+            config (ClientConfig, optional): Client configuration. If not provided,
+                default configuration will be used.
+        """
+        self._core_client = CoreClient(config)
+        
+        # Initialize service clients
+        {{- range .IR.Services }}
+        self.{{ serviceVar .Tag }} = {{ serviceName .Tag }}(self._core_client)
+        {{- end }}
+    
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit."""
+        self.close()
+    
+    def close(self):
+        """Close the HTTP client and clean up resources."""
+        self._core_client.close()
+    
+    @property
+    def core_client(self) -> CoreClient:
+        """Access to the underlying HTTP client."""
+        return self._core_client

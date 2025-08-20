@@ -1,0 +1,141 @@
+"""{{ .Client.Name }} Python SDK Client"""
+
+from typing import Any, Dict, Optional, Union
+import httpx
+from urllib.parse import urlencode
+
+{{- $schemes := .IR.SecuritySchemes }}
+
+class ClientConfig:
+    """Configuration for the {{ .Client.Name }} client."""
+    
+    def __init__(
+        self,
+        base_url: Optional[str] = None,
+        headers: Optional[Dict[str, str]] = None,
+        {{- range $s := $schemes }}
+        {{- if eq $s.Type "http" }}
+        {{- if eq $s.Scheme "bearer" }}
+        {{ snake $s.Key }}: Optional[str] = None,
+        {{- else if eq $s.Scheme "basic" }}
+        {{ snake $s.Key }}: Optional[Dict[str, str]] = None,  # {"username": "user", "password": "pass"}
+        {{- end }}
+        {{- else if eq $s.Type "apiKey" }}
+        {{ snake $s.Key }}: Optional[str] = None,
+        {{- end }}
+        {{- end }}
+        timeout: Optional[float] = 30.0,
+        **kwargs: Any
+    ):
+        self.base_url = base_url or "{{ .Client.DefaultBaseURL }}"
+        self.headers = headers or {}
+        {{- range $s := $schemes }}
+        {{- if eq $s.Type "http" }}
+        {{- if eq $s.Scheme "bearer" }}
+        self.{{ snake $s.Key }} = {{ snake $s.Key }}
+        {{- else if eq $s.Scheme "basic" }}
+        self.{{ snake $s.Key }} = {{ snake $s.Key }}
+        {{- end }}
+        {{- else if eq $s.Type "apiKey" }}
+        self.{{ snake $s.Key }} = {{ snake $s.Key }}
+        {{- end }}
+        {{- end }}
+        self.timeout = timeout
+        self.client_kwargs = kwargs
+
+
+class CoreClient:
+    """Core HTTP client for {{ .Client.Name }} API."""
+    
+    def __init__(self, config: Optional[ClientConfig] = None):
+        self.config = config or ClientConfig()
+        self._client = httpx.Client(
+            base_url=self.config.base_url,
+            timeout=self.config.timeout,
+            **self.config.client_kwargs
+        )
+    
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+    
+    def close(self):
+        """Close the HTTP client."""
+        self._client.close()
+    
+    def request(
+        self,
+        method: str,
+        path: str,
+        params: Optional[Dict[str, Any]] = None,
+        json: Optional[Any] = None,
+        data: Optional[Any] = None,
+        headers: Optional[Dict[str, str]] = None,
+        **kwargs: Any
+    ) -> Any:
+        """Make an HTTP request."""
+        
+        # Prepare headers
+        req_headers = {**self.config.headers}
+        if headers:
+            req_headers.update(headers)
+        
+        {{- range $s := $schemes }}
+        {{- if eq $s.Type "http" }}
+        {{- if eq $s.Scheme "bearer" }}
+        # Bearer authentication
+        if self.config.{{ snake $s.Key }}:
+            req_headers["Authorization"] = f"Bearer {self.config.{{ snake $s.Key }}}"
+        {{- else if eq $s.Scheme "basic" }}
+        # Basic authentication
+        if self.config.{{ snake $s.Key }}:
+            import base64
+            username = self.config.{{ snake $s.Key }}.get("username", "")
+            password = self.config.{{ snake $s.Key }}.get("password", "")
+            credentials = base64.b64encode(f"{username}:{password}".encode()).decode()
+            req_headers["Authorization"] = f"Basic {credentials}"
+        {{- end }}
+        {{- else if eq $s.Type "apiKey" }}
+        {{- if eq $s.In "header" }}
+        # API Key in header
+        if self.config.{{ snake $s.Key }}:
+            req_headers["{{ $s.Name }}"] = self.config.{{ snake $s.Key }}
+        {{- else if eq $s.In "query" }}
+        # API Key in query params
+        if self.config.{{ snake $s.Key }}:
+            if params is None:
+                params = {}
+            params["{{ $s.Name }}"] = self.config.{{ snake $s.Key }}
+        {{- else if eq $s.In "cookie" }}
+        # API Key in cookie
+        if self.config.{{ snake $s.Key }}:
+            req_headers["Cookie"] = f"{{ $s.Name }}={self.config.{{ snake $s.Key }}}"
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        
+        # Clean up None values from params
+        if params:
+            params = {k: v for k, v in params.items() if v is not None}
+        
+        response = self._client.request(
+            method=method,
+            url=path,
+            params=params,
+            json=json,
+            data=data,
+            headers=req_headers,
+            **kwargs
+        )
+        
+        # Raise for HTTP errors
+        response.raise_for_status()
+        
+        # Return JSON if content-type is application/json
+        content_type = response.headers.get("content-type", "")
+        if "application/json" in content_type:
+            return response.json()
+        
+        return response.text

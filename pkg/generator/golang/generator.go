@@ -57,6 +57,9 @@ func (g *GoGenerator) Generate(client config.Client, in ir.IR) error {
 		"hasRequestBody":  func(op ir.IROperation) bool { return op.RequestBody != nil },
 		"methodSignature": func(op ir.IROperation) string { return buildMethodSignature(client, op, ResolveMethodName(client, op)) },
 		"reMatch":         func(pattern, s string) bool { r := regexp.MustCompile(pattern); return r.MatchString(s) },
+		"formatGoComment": formatGoComment,
+		"replace":         strings.ReplaceAll,
+		"printf":          fmt.Sprintf,
 		"packageName":     func() string { return sanitizePackageName(client.PackageName) },
 		"moduleName": func() string {
 			if client.ModuleName != "" {
