@@ -20,6 +20,12 @@ const client = new {{ pascal .Client.Name }}Client({
   baseURL: 'https://api.example.com',
   timeoutMs: 10000,
   retry: { retries: 2, backoffMs: 300, retryOn: [429, 500, 502, 503, 504] },
+  // Environment-based baseURL (optional)
+  env: 'sandbox',
+  envBaseURLs: { sandbox: 'https://api-sandbox.example.com', production: 'https://api.example.com' },
+  // Auth (generic API Key or Bearer header)
+  accessToken: process.env.API_TOKEN,
+  headerName: 'access_token', // or 'Authorization' (defaults to Authorization: Bearer <token>)
   {{- range .IR.SecuritySchemes }}
   {{- if eq .Type "http" }}
   {{- if eq .Scheme "bearer" }}
