@@ -143,8 +143,16 @@ func (g *TypeScriptGenerator) Generate(client config.Client, in ir.IR) error {
 	if err := renderFile("package.json.gotmpl", filepath.Join(client.OutDir, "package.json"), funcMap, map[string]any{"Client": client}); err != nil {
 		return err
 	}
+	// eslint.config.mjs
+	if err := renderFile("eslint.config.mjs.gotmpl", filepath.Join(client.OutDir, "eslint.config.mjs"), funcMap, map[string]any{"Client": client}); err != nil {
+		return err
+	}
 	// .prettierrc.json
 	if err := renderFile(".prettierrc.json.gotmpl", filepath.Join(client.OutDir, ".prettierrc.json"), funcMap, map[string]any{"Client": client}); err != nil {
+		return err
+	}
+	// .prettierignore
+	if err := renderFile(".prettierignore.gotmpl", filepath.Join(client.OutDir, ".prettierignore"), funcMap, map[string]any{"Client": client}); err != nil {
 		return err
 	}
 	// tsconfig.json
