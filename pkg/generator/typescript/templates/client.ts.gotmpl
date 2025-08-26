@@ -8,6 +8,11 @@ export type ClientOption = {
   onRequest?: (ctx: { url: string; init: RequestInit & { path: string; method: string; query?: Record<string, any> }; attempt: number }) => void | Promise<void>;
   onResponse?: (ctx: { url: string; init: RequestInit & { path: string; method: string; query?: Record<string, any> }; attempt: number; response: Response }) => void | Promise<void>;
   onError?: (err: unknown, ctx: { url: string; init: RequestInit & { path: string; method: string; query?: Record<string, any> }; attempt: number }) => void | Promise<void>;
+  // Environment & Auth
+  env?: 'sandbox' | 'production';
+  envBaseURLs?: { sandbox: string; production: string };
+  accessToken?: string | (() => string | Promise<string>);
+  headerName?: string;
   {{- range $s := $schemes }}
   {{- if eq $s.Type "http" }}
     {{- if eq $s.Scheme "bearer" }}
@@ -38,8 +43,15 @@ export class CoreClient {
   constructor(private cfg: ClientOption = {}) {
     // Set default base URL if not provided
     if (!this.cfg.baseURL) {
-      this.cfg.baseURL = "{{ .Client.DefaultBaseURL }}";
+      if (this.cfg.env && this.cfg.envBaseURLs) {
+        this.cfg.baseURL = this.cfg.env === 'production' ? this.cfg.envBaseURLs.production : this.cfg.envBaseURLs.sandbox;
+      } else {
+        this.cfg.baseURL = "{{ .Client.DefaultBaseURL }}";
+      }
     }
+  }
+  setAccessToken(token: string | (() => string | Promise<string>)) {
+    this.cfg.accessToken = token;
   }
   async request(
     init: RequestInit & {
@@ -72,6 +84,13 @@ export class CoreClient {
       ...(this.cfg.headers || {}),
       ...(init.headers as any),
     });
+    // Generic access token support (optional)
+    if (this.cfg.accessToken) {
+      const token = typeof this.cfg.accessToken === 'function' ? await this.cfg.accessToken() : this.cfg.accessToken;
+      const name = this.cfg.headerName || 'Authorization';
+      if (name.toLowerCase() === 'authorization') headers.set(name, `Bearer ${String(token)}`);
+      else headers.set(name, String(token));
+    }
     {{- range $s := $schemes }}
     {{- if eq $s.Type "http" }}
       {{- if eq $s.Scheme "bearer" }}
