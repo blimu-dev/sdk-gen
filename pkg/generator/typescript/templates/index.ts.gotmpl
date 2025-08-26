@@ -55,3 +55,9 @@ export class {{ .Client.Name }} {
 }
 
 export type { ClientOption };
+
+// Re-exports for better ergonomics
+export * as Schema from "./schema";
+{{- range .IR.Services }}
+export { {{ serviceName .Tag }} } from "./services/{{ fileBase .Tag }}";
+{{- end }}
