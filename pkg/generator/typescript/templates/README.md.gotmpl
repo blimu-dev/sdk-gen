@@ -26,17 +26,6 @@ const client = new {{ pascal .Client.Name }}Client({
   // Auth (generic API Key or Bearer header)
   accessToken: process.env.API_TOKEN,
   headerName: 'access_token', // or 'Authorization' (defaults to Authorization: Bearer <token>)
-  {{- range .IR.SecuritySchemes }}
-  {{- if eq .Type "http" }}
-  {{- if eq .Scheme "bearer" }}
-  {{ camel .Key }}: 'your-bearer-token',
-  {{- else if eq .Scheme "basic" }}
-  {{ camel .Key }}: { username: 'user', password: 'pass' },
-  {{- end }}
-  {{- else if eq .Type "apiKey" }}
-  {{ camel .Key }}: 'your-api-key',
-  {{- end }}
-  {{- end }}
 });
 
 {{- range .IR.Services }}
@@ -59,11 +48,45 @@ try {
   );
   console.log('Result:', result);
 } catch (error) {
-  console.error('Error:', error);
+  // ApiError with structured data
+  console.error(error);
 }
 {{- break }}
 {{- end }}
 {{- end }}
+```
+
+## Environment & Auth
+
+```typescript
+const client = new {{ pascal .Client.Name }}Client({
+  env: 'sandbox',
+  envBaseURLs: { sandbox: 'https://api-sandbox.example.com', production: 'https://api.example.com' },
+  accessToken: async () => process.env.API_TOKEN!,
+  headerName: 'access_token',
+});
+client.setAccessToken('new-token');
+```
+
+## Pagination
+
+```typescript
+import { listAll } from '{{ .Client.PackageName }}';
+
+const allPayments = await listAll(
+  (query) => client.payment.listPayments(query),
+  { limit: 100 },
+);
+```
+
+## Interceptors
+
+```typescript
+const client = new {{ pascal .Client.Name }}Client({
+  onRequest: ({ url, init }) => console.debug('->', init.method, url),
+  onResponse: ({ response }) => console.debug('<-', response.status),
+  onError: (err) => console.warn('request error', err),
+});
 ```
 
 ## Authentication
@@ -107,6 +130,12 @@ const client = new {{ pascal $.Client.Name }}Client({
 {{- end }}
 {{- end }}
 
+## Subpath imports
+
+```typescript
+import { PaymentService, Schema } from '{{ .Client.PackageName }}';
+```
+
 ## Available Services
 
 {{- range .IR.Services }}
@@ -119,39 +148,6 @@ const client = new {{ pascal $.Client.Name }}Client({
 {{- end }}
 {{- end }}
 {{- end }}
-
-## Configuration Options
-
-You can customize the client with various options:
-
-```typescript
-const client = new {{ pascal .Client.Name }}Client({
-  // Set custom base URL
-  baseURL: 'https://api.example.com',
-  
-  // Set default headers
-  headers: {
-    'User-Agent': 'MyApp/1.0',
-    'Custom-Header': 'value',
-  },
-  
-  // Set custom fetch implementation (Node.js)
-  fetch: require('node-fetch'),
-});
-```
-
-## Error Handling
-
-The SDK throws structured errors that you can catch and handle:
-
-```typescript
-try {
-  const result = await client.someService.someMethod();
-} catch (error) {
-  // ApiError with structured data
-  console.error(error);
-}
-```
 
 ## TypeScript Support
 
@@ -185,48 +181,18 @@ const data: Schema.{{ $firstModel.Name }} = {
 For Node.js environments, you may need to provide a fetch implementation:
 
 ```bash
-npm install node-fetch @types/node-fetch
+npm install undici
 ```
 
 ```typescript
-import fetch from 'undici-fetch';
+import { fetch } from 'undici';
 import { {{ pascal .Client.Name }}Client } from '{{ .Client.PackageName }}';
 
 const client = new {{ pascal .Client.Name }}Client({
   baseURL: 'https://api.example.com',
-  fetch: fetch as any,
+  fetch,
 });
 ```
-
-{{- if .Client.IncludeQueryKeys }}
-
-## React Query Integration
-
-This SDK includes query keys for easy integration with React Query:
-
-```typescript
-import { useQuery } from '@tanstack/react-query';
-import { client } from './api-client';
-
-function MyComponent() {
-  {{- range .IR.Services }}
-  {{- if gt (len .Operations) 0 }}
-  {{- $firstOp := index .Operations 0 }}
-  const { data, error, isLoading } = useQuery({
-    queryKey: client.{{ serviceProp .Tag }}.{{ methodName $firstOp }}__queryKeys(/* params */),
-    queryFn: () => client.{{ serviceProp .Tag }}.{{ methodName $firstOp }}(/* params */),
-  });
-  {{- break }}
-  {{- end }}
-  {{- end }}
-
-  if (isLoading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error.message}</div>;
-  
-  return <div>{/* Use data */}</div>;
-}
-```
-{{- end }}
 
 ## Models and Types
 
