@@ -40,8 +40,17 @@ export class {{ serviceName .Service.Tag }} {
       query,
       {{- end }}
       {{- if $req }}
-      headers: { ...(init?.headers || {}), "content-type": "{{ $req.ContentType }}" },
-      body: {{ if eq $req.ContentType "application/json" }}JSON.stringify(body){{ else }}(body as any){{ end }},
+      {{- if eq $req.ContentType "application/json" }}
+      headers: { ...(init?.headers || {}), "content-type": "application/json" },
+      body: JSON.stringify(body),
+      {{- else if eq $req.ContentType "multipart/form-data" }}
+      body: (body as any),
+      {{- else if eq $req.ContentType "application/x-www-form-urlencoded" }}
+      headers: { ...(init?.headers || {}), "content-type": "application/x-www-form-urlencoded" },
+      body: (body as any),
+      {{- else }}
+      body: (body as any),
+      {{- end }}
       {{- end }}
       ...(init || {}),
     });
