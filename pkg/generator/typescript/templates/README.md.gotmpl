@@ -18,6 +18,8 @@ import { {{ pascal .Client.Name }}Client } from '{{ .Client.PackageName }}';
 // Create a new client
 const client = new {{ pascal .Client.Name }}Client({
   baseURL: 'https://api.example.com',
+  timeoutMs: 10000,
+  retry: { retries: 2, backoffMs: 300, retryOn: [429, 500, 502, 503, 504] },
   {{- range .IR.SecuritySchemes }}
   {{- if eq .Type "http" }}
   {{- if eq .Scheme "bearer" }}
@@ -140,11 +142,8 @@ The SDK throws structured errors that you can catch and handle:
 try {
   const result = await client.someService.someMethod();
 } catch (error) {
-  if (error.status) {
-    console.error(`API Error ${error.status}:`, error.body);
-  } else {
-    console.error('Network or other error:', error.message);
-  }
+  // ApiError with structured data
+  console.error(error);
 }
 ```
 
@@ -184,7 +183,7 @@ npm install node-fetch @types/node-fetch
 ```
 
 ```typescript
-import fetch from 'node-fetch';
+import fetch from 'undici-fetch';
 import { {{ pascal .Client.Name }}Client } from '{{ .Client.PackageName }}';
 
 const client = new {{ pascal .Client.Name }}Client({
