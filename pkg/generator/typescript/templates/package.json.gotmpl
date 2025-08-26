@@ -1,11 +1,30 @@
 {
   "name": "{{ .Client.PackageName }}",
   "version": "0.1.0",
+  "description": "TypeScript SDK for {{ .Client.Name }} API (auto-generated)",
   "type": "module",
   "main": "dist/index.js",
-  "module": "dist/index.js",
+  "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
+  "files": ["dist/**"],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./services/*": {
+      "import": "./dist/services/*.mjs",
+      "require": "./dist/services/*.js",
+      "types": "./dist/services/*.d.ts"
+    }
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "format": "eslint --fix . && prettier --write .",
+    "prepublishOnly": "npm run build && npm run typecheck || true"
   }
 }
