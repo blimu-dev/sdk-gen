@@ -126,6 +126,10 @@ func (g *TypeScriptGenerator) Generate(client config.Client, in ir.IR) error {
 	if err := renderFile("index.ts.gotmpl", filepath.Join(srcDir, "index.ts"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
 		return err
 	}
+	// utils.ts
+	if err := renderFile("utils.ts.gotmpl", filepath.Join(srcDir, "utils.ts"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
+		return err
+	}
 	// services per tag
 	for _, s := range in.Services {
 		target := filepath.Join(servicesDir, fmt.Sprintf("%s.ts", strings.ToLower(toSnakeCase(s.Tag))))

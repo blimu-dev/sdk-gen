@@ -58,6 +58,7 @@ export type { ClientOption };
 
 // Re-exports for better ergonomics
 export * as Schema from "./schema";
+export * from "./utils";
 {{- range .IR.Services }}
 export { {{ serviceName .Tag }} } from "./services/{{ fileBase .Tag }}";
 {{- end }}
