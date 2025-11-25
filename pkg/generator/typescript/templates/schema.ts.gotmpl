@@ -2,8 +2,6 @@
 
 export type Enum<T> = T[keyof T];
 
-{{- /* Wrap all types in a namespace for easier type augmentation */ -}}
-export namespace Schema {
 {{- /* Enums: const objects + union types */ -}}
 {{- $enumsSeen := dict }}
 {{- range .IR.ModelDefs }}
@@ -73,7 +71,6 @@ export namespace Schema {
     {{- end }}
   }
 
-      {{- end }}
     {{- end }}
   {{- end }}
-}
+{{- end }}
