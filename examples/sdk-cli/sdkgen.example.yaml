@@ -1,6 +1,6 @@
 # You can point to a local file or an HTTP(S) URL
 # spec: https://petstore3.swagger.io/api/v3/openapi.json
-spec: http://localhost:3000/docs/json
+spec: http://localhost:3020/docs/json
 name: "Example SDKs"
 clients:
   - type: typescript

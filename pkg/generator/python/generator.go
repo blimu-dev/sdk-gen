@@ -94,6 +94,35 @@ func (g *PythonGenerator) Generate(client config.Client, in ir.IR) error {
 		"isStringEnum":        func(schema ir.IRSchema) bool { return schema.Kind == "enum" && schema.EnumBase == "string" },
 		"enumValues":          func(schema ir.IRSchema) []string { return schema.EnumValues },
 		"formatPythonComment": func(s string) string { return formatPythonComment(s) },
+		// Namespace helper functions
+		"groupByNamespace": func(services []ir.IRService) map[string][]ir.IRService {
+			namespaces := make(map[string][]ir.IRService)
+			for _, service := range services {
+				parts := strings.Split(service.Tag, ".")
+				if len(parts) == 1 {
+					// Root level service
+					if namespaces[""] == nil {
+						namespaces[""] = []ir.IRService{}
+					}
+					namespaces[""] = append(namespaces[""], service)
+				} else {
+					// Namespaced service
+					namespace := parts[0]
+					if namespaces[namespace] == nil {
+						namespaces[namespace] = []ir.IRService{}
+					}
+					namespaces[namespace] = append(namespaces[namespace], service)
+				}
+			}
+			return namespaces
+		},
+		"getServiceName": func(tag string) string {
+			parts := strings.Split(tag, ".")
+			if len(parts) > 1 {
+				return parts[1] // Return the part after the dot
+			}
+			return tag // Return the whole tag if no dot
+		},
 	}
 
 	// Merge sprig functions
@@ -102,45 +131,45 @@ func (g *PythonGenerator) Generate(client config.Client, in ir.IR) error {
 	}
 
 	// client.py
-	if err := renderFile("client.py.gotmpl", filepath.Join(srcDir, "client.py"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
+	if err := renderFile(client, "client.py.gotmpl", filepath.Join(srcDir, "client.py"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
 		return err
 	}
 
 	// __init__.py
-	if err := renderFile("__init__.py.gotmpl", filepath.Join(srcDir, "__init__.py"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
+	if err := renderFile(client, "__init__.py.gotmpl", filepath.Join(srcDir, "__init__.py"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
 		return err
 	}
 
 	// models.py
-	if err := renderFile("models.py.gotmpl", filepath.Join(srcDir, "models.py"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
+	if err := renderFile(client, "models.py.gotmpl", filepath.Join(srcDir, "models.py"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
 		return err
 	}
 
 	// services per tag
 	for _, s := range in.Services {
 		target := filepath.Join(servicesDir, fmt.Sprintf("%s.py", strings.ToLower(toSnakeCase(s.Tag))))
-		if err := renderFile("service.py.gotmpl", target, funcMap, map[string]any{"Client": client, "Service": s}); err != nil {
+		if err := renderFile(client, "service.py.gotmpl", target, funcMap, map[string]any{"Client": client, "Service": s}); err != nil {
 			return err
 		}
 	}
 
 	// services/__init__.py
-	if err := renderFile("services_init.py.gotmpl", filepath.Join(servicesDir, "__init__.py"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
+	if err := renderFile(client, "services_init.py.gotmpl", filepath.Join(servicesDir, "__init__.py"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
 		return err
 	}
 
 	// pyproject.toml
-	if err := renderFile("pyproject.toml.gotmpl", filepath.Join(client.OutDir, "pyproject.toml"), funcMap, map[string]any{"Client": client}); err != nil {
+	if err := renderFile(client, "pyproject.toml.gotmpl", filepath.Join(client.OutDir, "pyproject.toml"), funcMap, map[string]any{"Client": client}); err != nil {
 		return err
 	}
 
 	// README.md
-	if err := renderFile("README.md.gotmpl", filepath.Join(client.OutDir, "README.md"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
+	if err := renderFile(client, "README.md.gotmpl", filepath.Join(client.OutDir, "README.md"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
 		return err
 	}
 
 	// py.typed (for type hints)
-	if err := renderFile("py.typed.gotmpl", filepath.Join(srcDir, "py.typed"), funcMap, map[string]any{}); err != nil {
+	if err := renderFile(client, "py.typed.gotmpl", filepath.Join(srcDir, "py.typed"), funcMap, map[string]any{}); err != nil {
 		return err
 	}
 
@@ -148,7 +177,12 @@ func (g *PythonGenerator) Generate(client config.Client, in ir.IR) error {
 }
 
 // renderFile renders a template file to the target path
-func renderFile(templateName, targetPath string, funcMap template.FuncMap, data map[string]any) error {
+func renderFile(client config.Client, templateName, targetPath string, funcMap template.FuncMap, data map[string]any) error {
+	// Check if file should be excluded
+	if client.ShouldExcludeFile(targetPath) {
+		return nil // Skip this file silently
+	}
+
 	tmplContent, err := templatesFS.ReadFile("templates/" + templateName)
 	if err != nil {
 		return fmt.Errorf("failed to read template %s: %w", templateName, err)

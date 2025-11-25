@@ -119,59 +119,61 @@ func (g *TypeScriptGenerator) Generate(client config.Client, in ir.IR) error {
 	}
 
 	// client.ts
-	if err := renderFile("client.ts.gotmpl", filepath.Join(srcDir, "client.ts"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
+	if err := renderFile(client, "client.ts.gotmpl", filepath.Join(srcDir, "client.ts"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
 		return err
 	}
 	// index.ts
-	if err := renderFile("index.ts.gotmpl", filepath.Join(srcDir, "index.ts"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
+	if err := renderFile(client, "index.ts.gotmpl", filepath.Join(srcDir, "index.ts"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
 		return err
 	}
 	// utils.ts
-	if err := renderFile("utils.ts.gotmpl", filepath.Join(srcDir, "utils.ts"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
+	if err := renderFile(client, "utils.ts.gotmpl", filepath.Join(srcDir, "utils.ts"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
 		return err
 	}
 	// services per tag
 	for _, s := range in.Services {
 		target := filepath.Join(servicesDir, fmt.Sprintf("%s.ts", strings.ToLower(toSnakeCase(s.Tag))))
-		if err := renderFile("service.ts.gotmpl", target, funcMap, map[string]any{"Client": client, "Service": s}); err != nil {
+		if err := renderFile(client, "service.ts.gotmpl", target, funcMap, map[string]any{"Client": client, "Service": s}); err != nil {
 			return err
 		}
 	}
 	// schemas (always render; may hold operation query interfaces even without models)
 	// Deduplicate model definitions to prevent duplicate enum/type generation
 	deduplicatedIR := deduplicateModelDefs(in)
-	if err := renderFile("schema.ts.gotmpl", filepath.Join(srcDir, "schema.ts"), funcMap, map[string]any{"IR": deduplicatedIR}); err != nil {
+	if err := renderFile(client, "schema.ts.gotmpl", filepath.Join(srcDir, "schema.ts"), funcMap, map[string]any{"IR": deduplicatedIR}); err != nil {
 		return err
 	}
 	// package.json
-	if err := renderFile("package.json.gotmpl", filepath.Join(client.OutDir, "package.json"), funcMap, map[string]any{"Client": client}); err != nil {
+	if err := renderFile(client, "package.json.gotmpl", filepath.Join(client.OutDir, "package.json"), funcMap, map[string]any{"Client": client}); err != nil {
 		return err
 	}
-	// eslint.config.mjs
-	if err := renderFile("eslint.config.mjs.gotmpl", filepath.Join(client.OutDir, "eslint.config.mjs"), funcMap, map[string]any{"Client": client}); err != nil {
-		return err
-	}
+
 	// .prettierrc.json
-	if err := renderFile(".prettierrc.json.gotmpl", filepath.Join(client.OutDir, ".prettierrc.json"), funcMap, map[string]any{"Client": client}); err != nil {
+	if err := renderFile(client, ".prettierrc.json.gotmpl", filepath.Join(client.OutDir, ".prettierrc.json"), funcMap, map[string]any{"Client": client}); err != nil {
 		return err
 	}
 	// .prettierignore
-	if err := renderFile(".prettierignore.gotmpl", filepath.Join(client.OutDir, ".prettierignore"), funcMap, map[string]any{"Client": client}); err != nil {
+	if err := renderFile(client, ".prettierignore.gotmpl", filepath.Join(client.OutDir, ".prettierignore"), funcMap, map[string]any{"Client": client}); err != nil {
 		return err
 	}
 	// tsconfig.json
-	if err := renderFile("tsconfig.json.gotmpl", filepath.Join(client.OutDir, "tsconfig.json"), funcMap, map[string]any{"Client": client}); err != nil {
+	if err := renderFile(client, "tsconfig.json.gotmpl", filepath.Join(client.OutDir, "tsconfig.json"), funcMap, map[string]any{"Client": client}); err != nil {
 		return err
 	}
 	// README.md
-	if err := renderFile("README.md.gotmpl", filepath.Join(client.OutDir, "README.md"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
+	if err := renderFile(client, "README.md.gotmpl", filepath.Join(client.OutDir, "README.md"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
 		return err
 	}
 	return nil
 }
 
 // renderFile renders a template file to the target path
-func renderFile(templateName, targetPath string, funcMap template.FuncMap, data map[string]any) error {
+func renderFile(client config.Client, templateName, targetPath string, funcMap template.FuncMap, data map[string]any) error {
+	// Check if file should be excluded
+	if client.ShouldExcludeFile(targetPath) {
+		return nil // Skip this file silently
+	}
+
 	tmplContent, err := templatesFS.ReadFile("templates/" + templateName)
 	if err != nil {
 		return fmt.Errorf("failed to read template %s: %w", templateName, err)

@@ -37,29 +37,33 @@ func (s *Service) filterIR(fullIR ir.IR, client config.Client) (ir.IR, error) {
 		return ir.IR{}, err
 	}
 
-	// Collect all tags from the IR
-	allTags := make([]string, 0, len(fullIR.Services))
-	for _, service := range fullIR.Services {
-		allTags = append(allTags, service.Tag)
-	}
-
-	// Filter tags
-	allowed := filterTags(allTags, include, exclude)
-
-	// Filter services
+	// Filter services and operations based on their original tags
 	filteredServices := make([]ir.IRService, 0)
 	for _, service := range fullIR.Services {
-		if allowed[service.Tag] {
-			filteredServices = append(filteredServices, service)
+		filteredOps := make([]ir.IROperation, 0)
+		for _, op := range service.Operations {
+			if shouldIncludeOperation(op.OriginalTags, include, exclude) {
+				filteredOps = append(filteredOps, op)
+			}
+		}
+		// Only include the service if it has at least one operation after filtering
+		if len(filteredOps) > 0 {
+			filteredService := service
+			filteredService.Operations = filteredOps
+			filteredServices = append(filteredServices, filteredService)
 		}
 	}
 
-	return ir.IR{
+	// Filter ModelDefs to only include those referenced by filtered operations
+	filteredIR := ir.IR{
 		Services:        filteredServices,
 		Models:          fullIR.Models,
 		SecuritySchemes: fullIR.SecuritySchemes,
 		ModelDefs:       fullIR.ModelDefs,
-	}, nil
+	}
+	filteredIR.ModelDefs = filterUnusedModelDefs(filteredIR, fullIR.ModelDefs)
+
+	return filteredIR, nil
 }
 
 // collectTags extracts all tags from the OpenAPI document
@@ -108,6 +112,45 @@ func compileTagFilters(include, exclude []string) ([]*regexp.Regexp, []*regexp.R
 		exc = append(exc, r)
 	}
 	return inc, exc, nil
+}
+
+// shouldIncludeOperation determines if an operation should be included based on its original tags
+func shouldIncludeOperation(originalTags []string, include, exclude []*regexp.Regexp) bool {
+	// If no include patterns, assume all tags are initially included
+	included := len(include) == 0
+
+	// Check include patterns - operation is included if ANY of its tags match ANY include pattern
+	if len(include) > 0 {
+		for _, tag := range originalTags {
+			for _, r := range include {
+				if r.MatchString(tag) {
+					included = true
+					break
+				}
+			}
+			if included {
+				break
+			}
+		}
+	}
+
+	// If not included by include patterns, exclude it
+	if !included {
+		return false
+	}
+
+	// Check exclude patterns - operation is excluded if ANY of its tags match ANY exclude pattern
+	if len(exclude) > 0 {
+		for _, tag := range originalTags {
+			for _, r := range exclude {
+				if r.MatchString(tag) {
+					return false
+				}
+			}
+		}
+	}
+
+	return true
 }
 
 // filterTags filters tags based on include/exclude patterns
@@ -160,18 +203,27 @@ func buildIRFromDoc(doc *openapi3.T, allowed map[string]bool) ir.IR {
 		pathParams, queryParams := collectParams(doc, op)
 		reqBody := extractRequestBody(doc, op)
 		resp := extractResponse(doc, op)
+
+		// Copy original tags, defaulting to ["misc"] if no tags
+		originalTags := make([]string, len(op.Tags))
+		copy(originalTags, op.Tags)
+		if len(originalTags) == 0 {
+			originalTags = []string{"misc"}
+		}
+
 		servicesMap[tag].Operations = append(servicesMap[tag].Operations, ir.IROperation{
-			OperationID: id,
-			Method:      method,
-			Path:        path,
-			Tag:         tag,
-			Summary:     op.Summary,
-			Description: op.Description,
-			Deprecated:  op.Deprecated,
-			PathParams:  pathParams,
-			QueryParams: queryParams,
-			RequestBody: reqBody,
-			Response:    resp,
+			OperationID:  id,
+			Method:       method,
+			Path:         path,
+			Tag:          tag,
+			OriginalTags: originalTags,
+			Summary:      op.Summary,
+			Description:  op.Description,
+			Deprecated:   op.Deprecated,
+			PathParams:   pathParams,
+			QueryParams:  queryParams,
+			RequestBody:  reqBody,
+			Response:     resp,
 		})
 	}
 
@@ -426,6 +478,94 @@ func buildStructuredModels(doc *openapi3.T) []ir.IRModelDef {
 		})
 	}
 	return out
+}
+
+// filterUnusedModelDefs removes ModelDefs that are not referenced by any operations
+func filterUnusedModelDefs(filteredIR ir.IR, allModelDefs []ir.IRModelDef) []ir.IRModelDef {
+	// Build a map of all ModelDefs for quick lookup
+	modelDefMap := make(map[string]ir.IRModelDef)
+	for _, md := range allModelDefs {
+		modelDefMap[md.Name] = md
+	}
+
+	// Collect all schema references from filtered operations
+	referenced := make(map[string]bool)
+	visited := make(map[string]bool) // Track visited refs to avoid cycles
+
+	// Helper function to collect references from a schema recursively
+	var collectRefs func(schema ir.IRSchema)
+	collectRefs = func(schema ir.IRSchema) {
+		if schema.Kind == ir.IRKindRef && schema.Ref != "" {
+			refName := schema.Ref
+			referenced[refName] = true
+			// If this ref points to a ModelDef and we haven't visited it, collect its transitive references
+			if !visited[refName] {
+				visited[refName] = true
+				if md, ok := modelDefMap[refName]; ok {
+					collectRefs(md.Schema)
+				}
+			}
+		}
+		if schema.Items != nil {
+			collectRefs(*schema.Items)
+		}
+		if schema.AdditionalProperties != nil {
+			collectRefs(*schema.AdditionalProperties)
+		}
+		for _, sub := range schema.OneOf {
+			if sub != nil {
+				collectRefs(*sub)
+			}
+		}
+		for _, sub := range schema.AnyOf {
+			if sub != nil {
+				collectRefs(*sub)
+			}
+		}
+		for _, sub := range schema.AllOf {
+			if sub != nil {
+				collectRefs(*sub)
+			}
+		}
+		if schema.Not != nil {
+			collectRefs(*schema.Not)
+		}
+		for _, field := range schema.Properties {
+			if field.Type != nil {
+				collectRefs(*field.Type)
+			}
+		}
+	}
+
+	// Collect references from all operations
+	for _, service := range filteredIR.Services {
+		for _, op := range service.Operations {
+			// Collect from path params
+			for _, param := range op.PathParams {
+				collectRefs(param.Schema)
+			}
+			// Collect from query params
+			for _, param := range op.QueryParams {
+				collectRefs(param.Schema)
+			}
+			// Collect from request body
+			if op.RequestBody != nil {
+				collectRefs(op.RequestBody.Schema)
+			}
+			// Collect from response
+			collectRefs(op.Response.Schema)
+		}
+	}
+
+	// Filter ModelDefs to only include referenced ones
+	filtered := make([]ir.IRModelDef, 0)
+	for _, md := range allModelDefs {
+		if referenced[md.Name] {
+			filtered = append(filtered, md)
+		}
+	}
+
+	return filtered
 }
 
 // This file is getting long - I'll need to continue with the schema conversion functions

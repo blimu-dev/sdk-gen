@@ -1,0 +1,149 @@
+/**
+ * Type Augmentation for {{ .Options.ModuleName }}
+ *
+ * This file is auto-generated from your OpenAPI specification.
+ * It provides type augmentation for all types and services defined in the specification.
+ *
+ * Make sure to include this file in your tsconfig.json:
+ * {
+ *   "include": ["{{ .Options.OutputFileName }}"]
+ * }
+ */
+/// <reference types="{{ .Options.ModuleName }}" />
+
+// ============================================================================
+// Type Augmentation for {{ .Options.ModuleName }}
+// ============================================================================
+
+declare module "{{ .Options.ModuleName }}" {
+  {{""}}
+  {{- /* Generate services */ -}}
+  {{- $grouped := groupByNamespace .IR.Services }}
+  {{- $rootServices := index $grouped "" }}
+
+  {{- /* Generate main client class */ -}}
+  export abstract class {{ .Client.Name }} {
+    {{- /* Root level services (no namespace) */ -}}
+    {{- if $rootServices }}
+      {{- range $rootServices }}
+    readonly {{ serviceProp .Tag }}: {{ serviceName .Tag }};
+      {{- end }}
+    {{- end }}
+    {{- /* Namespace properties */ -}}
+    {{- range $namespace, $services := $grouped }}
+      {{- if ne $namespace "" }}
+    readonly {{ serviceProp $namespace }}: {{ pascal $namespace }}Namespace;
+      {{- end }}
+    {{- end }}
+    constructor(options?: ClientOption);
+  }
+
+  {{- /* Generate service classes */ -}}
+  {{- range .IR.Services }}
+  export abstract class {{ serviceName .Tag }} {
+    private core;
+    {{""}}
+    constructor(core: CoreClient);
+    {{""}}
+    {{- range .Operations }}
+    {{""}}
+    {{- $method := methodName . -}}
+    {{- $params := methodSignature . -}}
+    {{ $method }}(
+      {{- range $i, $param := $params }}
+      {{ $param }}{{ if lt $i (sub (len $params) 1) }},{{ end }}
+      {{- end }}
+    ): Promise<{{ tsType .Response.Schema }}>;
+    {{- end }}
+  }
+  {{- end }}
+
+  {{- /* Generate namespace classes for non-root services */ -}}
+  {{ range $namespace, $services := $grouped }}
+    {{- if ne $namespace "" }}
+  export abstract class {{ pascal $namespace }}Namespace {
+      {{- range $services }}
+    readonly {{ serviceProp (getServiceName .Tag) }}: {{ serviceName .Tag }};
+      {{- end }}
+
+    constructor(core: CoreClient);
+  }
+    {{ end }}
+  {{- end }}
+
+  {{- /* Generate Schema namespace with all types */ -}}
+  namespace {{ .Options.Namespace }} {
+    {{- /* Enums: union types */ -}}
+    {{- $enumsSeen := dict }}
+    {{- range .IR.ModelDefs }}
+      {{- if eq .Schema.Kind "enum" }}
+        {{- if not (hasKey $enumsSeen .Name) }}
+          {{- $_ := set $enumsSeen .Name true }}
+    /**
+     * Override {{ .Name }} to be a union of specific values.
+     * This provides autocomplete and type safety.
+     {{- if .Annotations.Description }}
+     *
+     * {{ .Annotations.Description | replace "*/" "*\\/" }}
+     {{- end }}
+     */
+    type {{ .Name }} =
+      {{- range $i, $v := .Schema.EnumValues }}
+      | "{{ $v }}"{{ end }};
+        {{- end }}
+      {{ end -}}
+    {{- end }}
+
+    {{- /* Objects and other named models: render interfaces/types */ -}}
+    {{- range .IR.ModelDefs }}
+      {{- if ne .Schema.Kind "enum" }}
+        {{- if .Annotations.Description }}
+    /**
+     * {{ .Annotations.Description | replace "*/" "*\\/" }}
+     */
+        {{- end }}
+        {{- if eq .Schema.Kind "object" }}
+    interface {{ .Name }} {
+          {{- range .Schema.Properties }}
+          {{- if .Annotations.Description }}
+      /** {{ .Annotations.Description | replace "*/" "*\\/" }} */
+          {{- end }}
+      {{ quotePropName .Name }}{{ if not .Required }}?{{ end }}: {{ tsType .Type | stripSchemaNs }};
+          {{- end }}
+    }
+        {{- else if eq .Schema.Kind "ref" }}
+    type {{ .Name }} = {{ tsType .Schema | stripSchemaNs }};
+        {{- else if or (eq .Schema.Kind "oneOf") (eq .Schema.Kind "anyOf") (eq .Schema.Kind "allOf") }}
+    type {{ .Name }} = {{ tsType .Schema | stripSchemaNs }};
+        {{- else if or (eq .Schema.Kind "array") (eq .Schema.Kind "string") (eq .Schema.Kind "number") (eq .Schema.Kind "integer") (eq .Schema.Kind "boolean") (eq .Schema.Kind "null") }}
+    type {{ .Name }} = {{ tsType .Schema | stripSchemaNs }};
+        {{- end }}
+      {{- end -}}
+    {{- end }}
+
+    {{"\n"}}
+    // Operation query parameter interfaces
+    {{- range .IR.Services }}
+      {{- $tag := .Tag -}}
+      {{- range .Operations }}
+        {{- if gt (len .QueryParams) 0 }}
+    /**
+     * Query params for {{ $tag }}.{{ pascal (methodName .) }}
+     {{- if .Description }}
+     *
+     * {{ .Description | replace "*/" "*\\/" }}
+     {{- end }}
+     */
+    interface {{ pascal $tag }}{{ pascal (methodName .) }}Query {
+          {{- range .QueryParams }}
+          {{- if .Description }}
+      /** {{ .Description | replace "*/" "*\\/" }} */
+          {{- end }}
+      {{ quotePropName .Name }}{{ if not .Required }}?{{ end }}: {{ tsType .Schema | stripSchemaNs }};
+          {{- end }}
+    }
+        {{- end }}
+      {{- end }}
+    {{- end }}
+  }
+}

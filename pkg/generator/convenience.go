@@ -80,6 +80,23 @@ func GenerateGoSDK(spec, outDir, packageName, clientName string) error {
 	})
 }
 
+// GenerateTypeScriptTypesSDK is a convenience function specifically for TypeScript types generation
+func GenerateTypeScriptTypesSDK(spec, outDir, packageName, moduleName string) error {
+	// Ensure absolute path for outDir
+	absOutDir, err := filepath.Abs(outDir)
+	if err != nil {
+		return err
+	}
+
+	return GenerateSDK(GenerateSDKOptions{
+		Spec:        spec,
+		Type:        "typescript-types",
+		OutDir:      absOutDir,
+		PackageName: packageName,
+		Name:        "Types", // Not used but required
+	})
+}
+
 // GenerateFromConfig is a convenience function for generating from a config file
 func GenerateFromConfig(configPath string, singleClient ...string) error {
 	service := NewService()

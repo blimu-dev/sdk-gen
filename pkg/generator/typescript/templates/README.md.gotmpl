@@ -34,7 +34,7 @@ const client = new {{ pascal .Client.Name }}Client({
 // Example: {{ $firstOp.Summary }}
 try {
   const result = await client.{{ serviceProp .Tag }}.{{ methodName $firstOp }}(
-    {{- range pathParamsInOrder $firstOp }}'{{ .Name }}'{{ if not (eq . (index (pathParamsInOrder $firstOp) (sub (len (pathParamsInOrder $firstOp)) 1))) }}, {{ end }}{{ end }}
+    {{- range $i, $param := pathParamsInOrder $firstOp }}'{{ $param.Name }}'{{ if not (eq $i (sub (len (pathParamsInOrder $firstOp)) 1)) }}, {{ end }}{{ end }}
     {{- if $firstOp.QueryParams }}{{ if pathParamsInOrder $firstOp }}, {{ end }}{
       {{- range $firstOp.QueryParams }}
       {{- if .Required }}

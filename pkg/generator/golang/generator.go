@@ -113,12 +113,12 @@ func (g *GoGenerator) Generate(client config.Client, in ir.IR) error {
 	}
 
 	// Generate client.go
-	if err := renderFile("client.go.gotmpl", filepath.Join(client.OutDir, "client.go"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
+	if err := renderFile(client, "client.go.gotmpl", filepath.Join(client.OutDir, "client.go"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
 		return err
 	}
 
 	// Generate models.go
-	if err := renderFile("models.go.gotmpl", filepath.Join(client.OutDir, "models.go"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
+	if err := renderFile(client, "models.go.gotmpl", filepath.Join(client.OutDir, "models.go"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
 		return err
 	}
 
@@ -129,18 +129,18 @@ func (g *GoGenerator) Generate(client config.Client, in ir.IR) error {
 			continue
 		}
 		fileName := fmt.Sprintf("%s.go", toSnakeCase(service.Tag))
-		if err := renderFile("service.go.gotmpl", filepath.Join(client.OutDir, fileName), funcMap, map[string]any{"Client": client, "Service": service}); err != nil {
+		if err := renderFile(client, "service.go.gotmpl", filepath.Join(client.OutDir, fileName), funcMap, map[string]any{"Client": client, "Service": service}); err != nil {
 			return err
 		}
 	}
 
 	// Generate go.mod
-	if err := renderFile("go.mod.gotmpl", filepath.Join(client.OutDir, "go.mod"), funcMap, map[string]any{"Client": client}); err != nil {
+	if err := renderFile(client, "go.mod.gotmpl", filepath.Join(client.OutDir, "go.mod"), funcMap, map[string]any{"Client": client}); err != nil {
 		return err
 	}
 
 	// Generate README.md
-	if err := renderFile("README.md.gotmpl", filepath.Join(client.OutDir, "README.md"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
+	if err := renderFile(client, "README.md.gotmpl", filepath.Join(client.OutDir, "README.md"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
 		return err
 	}
 
@@ -148,7 +148,12 @@ func (g *GoGenerator) Generate(client config.Client, in ir.IR) error {
 }
 
 // renderFile renders a template file to the target path
-func renderFile(templateName, targetPath string, funcMap template.FuncMap, data map[string]any) error {
+func renderFile(client config.Client, templateName, targetPath string, funcMap template.FuncMap, data map[string]any) error {
+	// Check if file should be excluded
+	if client.ShouldExcludeFile(targetPath) {
+		return nil // Skip this file silently
+	}
+
 	tmplContent, err := templatesFS.ReadFile("templates/" + templateName)
 	if err != nil {
 		return fmt.Errorf("failed to read template %s: %w", templateName, err)

@@ -2,19 +2,21 @@
 
 export type Enum<T> = T[keyof T];
 
+{{- /* Wrap all types in a namespace for easier type augmentation */ -}}
+export namespace Schema {
 {{- /* Enums: const objects + union types */ -}}
 {{- $enumsSeen := dict }}
 {{- range .IR.ModelDefs }}
   {{- if eq .Schema.Kind "enum" }}
     {{- if not (hasKey $enumsSeen .Name) }}
       {{- $_ := set $enumsSeen .Name true }}
-export const {{ .Name }} = {
-  {{- range $i, $v := .Schema.EnumValues }}
-  "{{ $v }}": {{ if or (eq $v "true") (eq $v "false") }}{{ $v }}{{ else if (reMatch "^-?[0-9]+(\\.[0-9]+)?$" $v) }}{{ $v }}{{ else }}"{{ $v }}"{{ end }},
-  {{- end }}
-} as const;
+  export const {{ .Name }} = {
+    {{- range $i, $v := .Schema.EnumValues }}
+    "{{ $v }}": {{ if or (eq $v "true") (eq $v "false") }}{{ $v }}{{ else if (reMatch "^-?[0-9]+(\\.[0-9]+)?$" $v) }}{{ $v }}{{ else }}"{{ $v }}"{{ end }},
+    {{- end }}
+  } as const;
 
-export type {{ .Name }} = Enum<typeof {{ .Name }}>;
+  export type {{ .Name }} = Enum<typeof {{ .Name }}>;
 
     {{- end }}
   {{ end -}}
@@ -28,49 +30,50 @@ export type {{ .Name }} = Enum<typeof {{ .Name }}>;
    */
   {{- end }}
   {{- if eq .Schema.Kind "object" }}
-export interface {{ .Name }} {
-  {{- range .Schema.Properties }}
-  {{- if .Annotations.Description }}
-  /** {{ .Annotations.Description | replace "*/" "*\\/" }} */
-  {{- end }}
-  {{ quotePropName .Name }}{{ if not .Required }}?{{ end }}: {{ tsType .Type | printf "%s" | stripSchemaNs }};
-  {{- end }}
-}
+  export interface {{ .Name }} {
+    {{- range .Schema.Properties }}
+    {{- if .Annotations.Description }}
+    /** {{ .Annotations.Description | replace "*/" "*\\/" }} */
+    {{- end }}
+    {{ quotePropName .Name }}{{ if not .Required }}?{{ end }}: {{ tsType .Type | printf "%s" | stripSchemaNs }};
+    {{- end }}
+  }
 
   {{- else if eq .Schema.Kind "ref" }}
-export type {{ .Name }} = {{ tsType .Schema | stripSchemaNs }};
+  export type {{ .Name }} = {{ tsType .Schema | stripSchemaNs }};
 
   {{- else if or (eq .Schema.Kind "oneOf") (eq .Schema.Kind "anyOf") (eq .Schema.Kind "allOf") }}
-export type {{ .Name }} = {{ tsType .Schema | stripSchemaNs }};
+  export type {{ .Name }} = {{ tsType .Schema | stripSchemaNs }};
 
   {{- else if or (eq .Schema.Kind "array") (eq .Schema.Kind "string") (eq .Schema.Kind "number") (eq .Schema.Kind "integer") (eq .Schema.Kind "boolean") (eq .Schema.Kind "null") }}
-export type {{ .Name }} = {{ tsType .Schema | stripSchemaNs }};
+  export type {{ .Name }} = {{ tsType .Schema | stripSchemaNs }};
 
   {{- end -}}
 {{- end }}
 
 {{"\n"}}
-// Operation query parameter interfaces
-{{- range .IR.Services }}
-  {{- $tag := .Tag -}}
-  {{- range .Operations }}
-    {{- if gt (len .QueryParams) 0 }}
-/**
- * Query params for {{ $tag }}.{{ pascal (methodName .) }}
- {{- if .Description }}
- *
- * {{ .Description | replace "*/" "*\\/" }}
- {{- end }}
- */
-export interface {{ pascal $tag }}{{ pascal (methodName .) }}Query {
-  {{- range .QueryParams }}
-  {{- if .Description }}
-  /** {{ .Description | replace "*/" "*\\/" }} */
-  {{- end }}
-  {{ quotePropName .Name }}{{ if not .Required }}?{{ end }}: {{ tsType .Schema | printf "%s" | stripSchemaNs }};
-  {{- end }}
-}
+  // Operation query parameter interfaces
+  {{- range .IR.Services }}
+    {{- $tag := .Tag -}}
+    {{- range .Operations }}
+      {{- if gt (len .QueryParams) 0 }}
+  /**
+   * Query params for {{ $tag }}.{{ pascal (methodName .) }}
+   {{- if .Description }}
+   *
+   * {{ .Description | replace "*/" "*\\/" }}
+   {{- end }}
+   */
+  export interface {{ pascal $tag }}{{ pascal (methodName .) }}Query {
+    {{- range .QueryParams }}
+    {{- if .Description }}
+    /** {{ .Description | replace "*/" "*\\/" }} */
+    {{- end }}
+    {{ quotePropName .Name }}{{ if not .Required }}?{{ end }}: {{ tsType .Schema | printf "%s" | stripSchemaNs }};
+    {{- end }}
+  }
 
+      {{- end }}
     {{- end }}
   {{- end }}
-{{- end }}
+}

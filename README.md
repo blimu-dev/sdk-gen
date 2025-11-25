@@ -1,3 +1,9 @@
+how to build
+
+```bash
+go build -o ./bin/sdk-gen ./cmd/sdk-gen
+```
+
 # SDK Generator
 
 A powerful Go library and CLI tool for generating type-safe SDKs from OpenAPI specifications. Currently supports TypeScript with plans for additional languages.

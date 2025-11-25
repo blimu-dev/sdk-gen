@@ -1,6 +1,6 @@
 
 
-import { CoreClient, ClientOption } from "./client";
+import { CoreClient, ClientOption, ApiError } from "./client";
 {{- range .IR.Services }}
 import { {{ serviceName .Tag }} } from "./services/{{ fileBase .Tag }}";
 {{- end }}
@@ -56,8 +56,22 @@ export class {{ .Client.Name }} {
 
 export type { ClientOption };
 
+// Export ApiError for error handling
+export { ApiError };
+export const {{ .Client.Name }}Error = ApiError;
+
 // Re-exports for better ergonomics
-export * as Schema from "./schema";
+// Note: Schema namespace is not re-exported here due to isolatedModules compatibility.
+// Namespaces cannot be re-exported when isolatedModules is enabled because they are both
+// types and values, which creates ambiguity for transpilers.
+// 
+// To use Schema, import it directly:
+//   import { Schema } from "@your-package/schema"
+// 
+// For type augmentation, use:
+//   declare module "@your-package/schema" {
+//     namespace Schema { ... }
+//   }
 export * from "./utils";
 {{- range .IR.Services }}
 export { {{ serviceName .Tag }} } from "./services/{{ fileBase .Tag }}";

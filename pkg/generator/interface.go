@@ -10,6 +10,7 @@ import (
 	"github.com/blimu-dev/sdk-gen/pkg/generator/golang"
 	"github.com/blimu-dev/sdk-gen/pkg/generator/python"
 	"github.com/blimu-dev/sdk-gen/pkg/generator/typescript"
+	typescripttypes "github.com/blimu-dev/sdk-gen/pkg/generator/typescript-types"
 	"github.com/blimu-dev/sdk-gen/pkg/ir"
 	"github.com/blimu-dev/sdk-gen/pkg/openapi"
 )
@@ -84,6 +85,7 @@ func NewService() *Service {
 	registry.Register(typescript.NewTypeScriptGenerator())
 	registry.Register(golang.NewGoGenerator())
 	registry.Register(python.NewPythonGenerator())
+	registry.Register(typescripttypes.NewTypeScriptTypesGenerator())
 	return &Service{
 		registry: registry,
 	}

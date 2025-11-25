@@ -2,17 +2,18 @@ package ir
 
 // IROperation represents a single API operation (endpoint + method)
 type IROperation struct {
-	OperationID string
-	Method      string
-	Path        string
-	Tag         string
-	Summary     string
-	Description string
-	Deprecated  bool
-	PathParams  []IRParam
-	QueryParams []IRParam
-	RequestBody *IRRequestBody
-	Response    IRResponse
+	OperationID  string
+	Method       string
+	Path         string
+	Tag          string   // The primary tag used for service grouping (first allowed tag)
+	OriginalTags []string // All original tags from the OpenAPI operation
+	Summary      string
+	Description  string
+	Deprecated   bool
+	PathParams   []IRParam
+	QueryParams  []IRParam
+	RequestBody  *IRRequestBody
+	Response     IRResponse
 }
 
 // IRService represents a group of operations, typically grouped by tag
