@@ -9,6 +9,9 @@
  *   "include": ["{{ .Options.OutputFileName }}"]
  * }
  */
+
+import { ClientOption, CoreClient, FetchError } from "{{ .Options.ModuleName }}/client";
+
 /// <reference types="{{ .Options.ModuleName }}" />
 
 // ============================================================================
@@ -16,6 +19,8 @@
 // ============================================================================
 
 declare module "{{ .Options.ModuleName }}" {
+  export const {{ .Client.Name }}Error: typeof FetchError;
+  
   {{""}}
   {{- /* Generate services */ -}}
   {{- $grouped := groupByNamespace .IR.Services }}

@@ -1,6 +1,6 @@
 
 
-import { CoreClient, ClientOption, ApiError } from "./client";
+import { CoreClient, ClientOption, FetchError } from "./client";
 {{- range .IR.Services }}
 import { {{ serviceName .Tag }} } from "./services/{{ fileBase .Tag }}";
 {{- end }}
@@ -56,9 +56,9 @@ export class {{ .Client.Name }} {
 
 export type { ClientOption };
 
-// Export ApiError for error handling
-export { ApiError };
-export const {{ .Client.Name }}Error = ApiError;
+// Export FetchError for error handling
+export { FetchError };
+export const {{ .Client.Name }}Error = FetchError;
 
 // Re-exports for better ergonomics
 export * from "./utils";
