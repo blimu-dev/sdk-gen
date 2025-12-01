@@ -10,7 +10,6 @@
  * }
  */
 
-import { ClientOption, CoreClient, FetchError } from "{{ .Options.ModuleName }}/client";
 
 /// <reference types="{{ .Options.ModuleName }}" />
 
@@ -19,6 +18,73 @@ import { ClientOption, CoreClient, FetchError } from "{{ .Options.ModuleName }}/
 // ============================================================================
 
 declare module "{{ .Options.ModuleName }}" {
+  /**
+   * Client configuration options
+   */
+  export type ClientOption = {
+    baseURL?: string;
+    headers?: Record<string, string>;
+    timeoutMs?: number;
+    retry?: { retries: number; backoffMs: number; retryOn?: number[] };
+    onRequest?: (ctx: {
+      url: string;
+      init: RequestInit & { path: string; method: string; query?: Record<string, unknown> };
+      attempt: number;
+    }) => void | Promise<void>;
+    onResponse?: (ctx: {
+      url: string;
+      init: RequestInit & { path: string; method: string; query?: Record<string, unknown> };
+      attempt: number;
+      response: Response;
+    }) => void | Promise<void>;
+    onError?: (
+      err: unknown,
+      ctx: {
+        url: string;
+        init: RequestInit & { path: string; method: string; query?: Record<string, unknown> };
+        attempt: number;
+      },
+    ) => void | Promise<void>;
+    // Environment & Auth
+    env?: 'sandbox' | 'production';
+    envBaseURLs?: { sandbox: string; production: string };
+    accessToken?: string | (() => string | Promise<string>);
+    headerName?: string;
+    apiKey?: string;
+    bearer?: string;
+    fetch?: typeof fetch;
+  };
+
+  /**
+   * Core client for making HTTP requests
+   */
+  export abstract class CoreClient {
+    constructor(cfg?: ClientOption);
+    setAccessToken(token: string | (() => string | Promise<string>)): void;
+    request(
+      init: RequestInit & {
+        path: string;
+        method: string;
+        query?: Record<string, unknown>;
+      },
+    ): Promise<unknown>;
+  }
+
+  /**
+   * Error class for HTTP request failures
+   */
+  export class FetchError<T = unknown> extends Error {
+    constructor(
+      message: string,
+      status: number,
+      data?: T,
+      headers?: Headers,
+    );
+    readonly status: number;
+    readonly data?: T;
+    readonly headers?: Headers;
+  }
+
   export const {{ .Client.Name }}Error: typeof FetchError;
   
   {{""}}
@@ -27,7 +93,7 @@ declare module "{{ .Options.ModuleName }}" {
   {{- $rootServices := index $grouped "" }}
 
   {{- /* Generate main client class */ -}}
-  export abstract class {{ .Client.Name }} {
+  export class {{ .Client.Name }} {
     {{- /* Root level services (no namespace) */ -}}
     {{- if $rootServices }}
       {{- range $rootServices }}
