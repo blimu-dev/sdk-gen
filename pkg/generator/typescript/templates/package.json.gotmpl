@@ -53,10 +53,13 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsup src/index.ts src/services/*.ts src/schema.ts src/client.ts src/utils.ts --format cjs,esm --dts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "format": "eslint --fix . && prettier --write .",
     "prepublishOnly": "npm run build && npm run typecheck || true"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1"
   }
 }

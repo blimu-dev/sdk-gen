@@ -164,6 +164,10 @@ func (g *TypeScriptGenerator) Generate(client config.Client, in ir.IR) error {
 	if err := renderFile(client, "README.md.gotmpl", filepath.Join(client.OutDir, "README.md"), funcMap, map[string]any{"Client": client, "IR": in}); err != nil {
 		return err
 	}
+	// postgen.sh
+	if err := renderFile(client, "postgen.sh.gotmpl", filepath.Join(client.OutDir, "postgen.sh"), funcMap, map[string]any{"Client": client}); err != nil {
+		return err
+	}
 	return nil
 }
 

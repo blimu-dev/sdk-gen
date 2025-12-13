@@ -5,13 +5,13 @@ export type ClientOption = {
   headers?: Record<string, string>;
   timeoutMs?: number;
   retry?: { retries: number; backoffMs: number; retryOn?: number[] };
-  onRequest?: (ctx: { url: string; init: RequestInit & { path: string; method: string; query?: Record<string, any> }; attempt: number }) => void | Promise<void>;
-  onResponse?: (ctx: { url: string; init: RequestInit & { path: string; method: string; query?: Record<string, any> }; attempt: number; response: Response }) => void | Promise<void>;
+  onRequest?: (ctx: { url: string; init: RequestInit & { path: string; method: string; query?: Record<string, any>; headers: Headers }; attempt: number }) => void | Promise<void>;
+  onResponse?: (ctx: { url: string; init: RequestInit & { path: string; method: string; query?: Record<string, any>; headers: Headers }; attempt: number; response: Response }) => void | Promise<void>;
   onError?: (err: unknown, ctx: { url: string; init: RequestInit & { path: string; method: string; query?: Record<string, any> }; attempt: number }) => void | Promise<void>;
   // Environment & Auth
   env?: 'sandbox' | 'production';
   envBaseURLs?: { sandbox: string; production: string };
-  accessToken?: string | (() => string | Promise<string>);
+  accessToken?: string | undefined | (() => string | undefined | Promise<string | undefined>);
   headerName?: string;
   {{- range $s := $schemes }}
   {{- if eq $s.Type "http" }}
@@ -25,6 +25,7 @@ export type ClientOption = {
   {{- end }}
   {{- end }}
   fetch?: typeof fetch;
+  credentials?: RequestCredentials;
 };
 
 export class FetchError<T = unknown> extends Error {
@@ -50,7 +51,7 @@ export class CoreClient {
       }
     }
   }
-  setAccessToken(token: string | (() => string | Promise<string>)) {
+  setAccessToken(token: string | undefined | (() => string | undefined | Promise<string | undefined>)) {
     this.cfg.accessToken = token;
   }
   async request(
@@ -87,9 +88,12 @@ export class CoreClient {
     // Generic access token support (optional)
     if (this.cfg.accessToken) {
       const token = typeof this.cfg.accessToken === 'function' ? await this.cfg.accessToken() : this.cfg.accessToken;
-      const name = this.cfg.headerName || 'Authorization';
-      if (name.toLowerCase() === 'authorization') headers.set(name, `Bearer ${String(token)}`);
-      else headers.set(name, String(token));
+      // Only set header if token is not nullish
+      if (token != null) {
+        const name = this.cfg.headerName || 'Authorization';
+        if (name.toLowerCase() === 'authorization') headers.set(name, `Bearer ${String(token)}`);
+        else headers.set(name, String(token));
+      }
     }
     {{- range $s := $schemes }}
     {{- if eq $s.Type "http" }}
@@ -114,11 +118,27 @@ export class CoreClient {
       {{- end }}
     {{- end }}
     {{- end }}
+
     const doFetch = async (attempt: number) => {
-      if (this.cfg.onRequest) await this.cfg.onRequest({ url: url.toString(), init, attempt });
+      // Clone init to prevent mutations from affecting concurrent requests
+      // Create a new Headers object for each request to avoid sharing references
+      const requestHeaders = new Headers(headers);
+      const fetchInit: RequestInit & {
+        path: string;
+        method: string;
+        query?: Record<string, any>;
+        headers: Headers;
+      } = {
+        ...init,
+        headers: requestHeaders,
+      };
+      // Set credentials from config if provided (can be overridden by onRequest)
+      if (this.cfg.credentials !== undefined) {
+        fetchInit.credentials = this.cfg.credentials;
+      }
+      if (this.cfg.onRequest) await this.cfg.onRequest({ url: url.toString(), init: fetchInit, attempt });
       let controller: AbortController | undefined;
       let timeoutId: any;
-      const fetchInit: RequestInit = { ...init, headers };
       if (this.cfg.timeoutMs && typeof AbortController !== 'undefined') {
         controller = new AbortController();
         fetchInit.signal = controller.signal;
@@ -126,7 +146,7 @@ export class CoreClient {
       }
       try {
         const res = await (this.cfg.fetch || fetch)(url.toString(), fetchInit);
-        if (this.cfg.onResponse) await this.cfg.onResponse({ url: url.toString(), init, attempt, response: res });
+        if (this.cfg.onResponse) await this.cfg.onResponse({ url: url.toString(), init: fetchInit, attempt, response: res });
         const ct = res.headers.get("content-type") || "";
         let parsed: any;
         if (ct.includes("application/json")) {
